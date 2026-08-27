@@ -4869,212 +4869,304 @@ async function loadSettingsHome() {
   }
 
 
-  const [
-    regionalsResult,
-    operationsResult,
-    usersResult,
-    checkpointsResult
-  ] =
-    await Promise.all([
+  try {
 
-      journeySupabase
-        .from('regionals')
-        .select(
-          'id',
-          {
-            count: 'exact',
-            head: true
-          }
-        ),
+    const [
+      regionalsResult,
+      operationsResult,
+      usersResult,
+      checkpointsResult
+    ] =
+      await Promise.all([
+
+        journeySupabase
+          .from('regionals')
+          .select(
+            'id',
+            {
+              count: 'exact',
+              head: true
+            }
+          ),
+
+        journeySupabase
+          .from('operations')
+          .select(
+            'id',
+            {
+              count: 'exact',
+              head: true
+            }
+          ),
+
+        journeySupabase
+          .from('profiles')
+          .select(
+            'id',
+            {
+              count: 'exact',
+              head: true
+            }
+          )
+          .in(
+            'role',
+            [
+              'LEADER',
+              'HR_MANAGER'
+            ]
+          ),
+
+        journeySupabase
+          .from('checkpoint_rules')
+          .select(
+            'checkpoint',
+            {
+              count: 'exact',
+              head: true
+            }
+          )
+
+      ]);
 
 
-      journeySupabase
-        .from('operations')
-        .select(
-          'id',
-          {
-            count: 'exact',
-            head: true
-          }
-        ),
+    pageContent.innerHTML = `
+
+      <div class="module-header">
+
+        <div>
+
+          <h2>
+            Configurações
+          </h2>
+
+          <p>
+            Gerencie a estrutura e os acessos
+            do Shopee Journey.
+          </p>
+
+        </div>
+
+      </div>
 
 
-      journeySupabase
-        .from('profiles')
-        .select(
-          'id',
-          {
-            count: 'exact',
-            head: true
-          }
-        )
-        .in(
-          'role',
-          [
-            'LEADER',
-            'HR_MANAGER'
-          ]
-        ),
+      <div class="settings-home-grid">
 
 
-      journeySupabase
-        .from('checkpoint_rules')
-        .select(
-          'checkpoint',
-          {
-            count: 'exact',
-            head: true
-          }
-        )
+        <button
+          id="settingsRegionalsCard"
+          class="settings-home-card"
+          type="button"
+        >
 
-    ]);
+          <div class="settings-home-icon">
+            🌎
+          </div>
+
+          <div>
+
+            <strong>
+              Regionais
+            </strong>
+
+            <span>
+              ${regionalsResult.count || 0}
+              cadastradas
+            </span>
+
+          </div>
+
+          <b>
+            Gerenciar →
+          </b>
+
+        </button>
 
 
-  pageContent.innerHTML = `
+        <button
+          id="settingsOperationsCard"
+          class="settings-home-card"
+          type="button"
+        >
 
-    <div class="module-header">
+          <div class="settings-home-icon">
+            📍
+          </div>
 
-      <div>
+          <div>
+
+            <strong>
+              Operações / HUBs
+            </strong>
+
+            <span>
+              ${operationsResult.count || 0}
+              cadastradas
+            </span>
+
+          </div>
+
+          <b>
+            Gerenciar →
+          </b>
+
+        </button>
+
+
+        <button
+          id="settingsCorporateUsersCard"
+          class="settings-home-card"
+          type="button"
+        >
+
+          <div class="settings-home-icon">
+            👥
+          </div>
+
+          <div>
+
+            <strong>
+              Acessos Corporativos
+            </strong>
+
+            <span>
+              ${usersResult.count || 0}
+              cadastrados
+            </span>
+
+          </div>
+
+          <b>
+            Gerenciar →
+          </b>
+
+        </button>
+
+
+        <button
+          id="settingsCheckpointsCard"
+          class="settings-home-card"
+          type="button"
+        >
+
+          <div class="settings-home-icon">
+            ⚙️
+          </div>
+
+          <div>
+
+            <strong>
+              Checkpoints
+            </strong>
+
+            <span>
+              ${checkpointsResult.count || 0}
+              configurados
+            </span>
+
+          </div>
+
+          <b>
+            Gerenciar →
+          </b>
+
+        </button>
+
+
+      </div>
+
+    `;
+
+
+    // ========================================================
+    // EVENTOS DOS CARDS
+    // ========================================================
+
+    document
+      .getElementById(
+        'settingsRegionalsCard'
+      )
+      ?.addEventListener(
+        'click',
+        async () => {
+
+          await loadRegionalsManager();
+
+        }
+      );
+
+
+    document
+      .getElementById(
+        'settingsOperationsCard'
+      )
+      ?.addEventListener(
+        'click',
+        async () => {
+
+          await loadOperationsManager();
+
+        }
+      );
+
+
+    document
+      .getElementById(
+        'settingsCorporateUsersCard'
+      )
+      ?.addEventListener(
+        'click',
+        () => {
+
+          loadCorporateUsersManager();
+
+        }
+      );
+
+
+    document
+      .getElementById(
+        'settingsCheckpointsCard'
+      )
+      ?.addEventListener(
+        'click',
+        () => {
+
+          openCheckpointSettings();
+
+        }
+      );
+
+  }
+
+  catch (error) {
+
+    console.error(
+      'Erro ao carregar Configurações:',
+      error
+    );
+
+
+    pageContent.innerHTML = `
+
+      <div class="system-error">
 
         <h2>
-          Configurações
+          Erro ao carregar Configurações
         </h2>
 
         <p>
-          Gerencie a estrutura e os acessos
-          do Shopee Journey.
+          ${escapeHTML(
+            error.message
+          )}
         </p>
 
       </div>
 
-    </div>
+    `;
 
-
-    <div class="settings-home-grid">
-
-
-      <button
-        class="settings-home-card"
-        onclick="loadRegionalsManager()"
-      >
-
-        <div class="settings-home-icon">
-          🌎
-        </div>
-
-        <div>
-
-          <strong>
-            Regionais
-          </strong>
-
-          <span>
-            ${regionalsResult.count || 0}
-            cadastradas
-          </span>
-
-        </div>
-
-        <b>
-          Gerenciar →
-        </b>
-
-      </button>
-
-
-      <button
-        class="settings-home-card"
-        onclick="loadOperationsManager()"
-      >
-
-        <div class="settings-home-icon">
-          📍
-        </div>
-
-        <div>
-
-          <strong>
-            Operações / HUBs
-          </strong>
-
-          <span>
-            ${operationsResult.count || 0}
-            cadastradas
-          </span>
-
-        </div>
-
-        <b>
-          Gerenciar →
-        </b>
-
-      </button>
-
-
-      <button
-        class="settings-home-card"
-        onclick="loadCorporateUsersManager()"
-      >
-
-        <div class="settings-home-icon">
-          👥
-        </div>
-
-        <div>
-
-          <strong>
-            Acessos Corporativos
-          </strong>
-
-          <span>
-            ${usersResult.count || 0}
-            cadastrados
-          </span>
-
-        </div>
-
-        <b>
-          Gerenciar →
-        </b>
-
-      </button>
-
-
-      <button
-        class="settings-home-card"
-        onclick="openCheckpointSettings()"
-      >
-
-        <div class="settings-home-icon">
-          ⚙️
-        </div>
-
-        <div>
-
-          <strong>
-            Checkpoints
-          </strong>
-
-          <span>
-            ${checkpointsResult.count || 0}
-            configurados
-          </span>
-
-        </div>
-
-        <b>
-          Gerenciar →
-        </b>
-
-      </button>
-
-
-    </div>
-
-  `;
+  }
 
 }
-
 async function loadRegionalsManager() {
 
   const {
