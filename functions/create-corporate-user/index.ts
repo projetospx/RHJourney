@@ -1,52 +1,18 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from
+  'https://esm.sh/@supabase/supabase-js@2';
 
-const SUPABASE_URL =
-  Deno.env.get("SUPABASE_URL")!;
-
-const SERVICE_ROLE_KEY =
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-const admin =
-  createClient(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false
-      }
-    }
-  );
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
 
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
 
-  "Access-Control-Allow-Methods":
-    "POST, OPTIONS"
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type',
+
+  'Access-Control-Allow-Methods':
+    'POST, OPTIONS'
+
 };
-
-
-function jsonResponse(
-  body: unknown,
-  status = 200
-) {
-
-  return new Response(
-    JSON.stringify(body),
-    {
-      status,
-
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json"
-      }
-    }
-  );
-
-}
 
 
 Deno.serve(
@@ -54,11 +20,11 @@ Deno.serve(
 
     if (
       req.method ===
-      "OPTIONS"
+      'OPTIONS'
     ) {
 
       return new Response(
-        "ok",
+        'ok',
         {
           headers:
             corsHeaders
@@ -68,35 +34,81 @@ Deno.serve(
     }
 
 
+    let createdUserId:
+      string | null =
+      null;
+
+
     try {
 
-      // ======================================================
-      // AUTENTICAÇÃO
-      // ======================================================
-
-      const authHeader =
-        req.headers.get(
-          "Authorization"
+      const supabaseUrl =
+        Deno.env.get(
+          'SUPABASE_URL'
         );
 
 
-      if (!authHeader) {
+      const anonKey =
+        Deno.env.get(
+          'SUPABASE_ANON_KEY'
+        );
 
-        return jsonResponse(
-          {
-            error:
-              "Usuário não autenticado."
-          },
-          401
+
+      const serviceRoleKey =
+        Deno.env.get(
+          'SUPABASE_SERVICE_ROLE_KEY'
+        );
+
+
+      if (
+        !supabaseUrl ||
+        !anonKey ||
+        !serviceRoleKey
+      ) {
+
+        throw new Error(
+          'Variáveis do Supabase não configuradas.'
         );
 
       }
 
 
-      const token =
-        authHeader.replace(
-          /^Bearer\s+/i,
-          ""
+      const authHeader =
+        req.headers.get(
+          'Authorization'
+        );
+
+
+      if (!authHeader) {
+
+        throw new Error(
+          'Sessão não encontrada.'
+        );
+
+      }
+
+
+      // ======================================================
+      // CLIENTE DO USUÁRIO LOGADO
+      // ======================================================
+
+      const userClient =
+        createClient(
+          supabaseUrl,
+          anonKey,
+          {
+
+            global: {
+
+              headers: {
+
+                Authorization:
+                  authHeader
+
+              }
+
+            }
+
+          }
         );
 
 
@@ -104,9 +116,9 @@ Deno.serve(
         data: userData,
         error: userError
       } =
-        await admin.auth.getUser(
-          token
-        );
+        await userClient
+          .auth
+          .getUser();
 
 
       if (
@@ -114,62 +126,87 @@ Deno.serve(
         !userData.user
       ) {
 
-        return jsonResponse(
-          {
-            error:
-              "Sessão inválida."
-          },
-          401
+        throw new Error(
+          'Sessão inválida.'
         );
 
       }
 
 
-      const caller =
-        userData.user;
+      // ======================================================
+      // SERVICE ROLE
+      // ======================================================
+
+      const admin =
+        createClient(
+          supabaseUrl,
+          serviceRoleKey,
+          {
+
+            auth: {
+
+              autoRefreshToken:
+                false,
+
+              persistSession:
+                false
+
+            }
+
+          }
+        );
 
 
       // ======================================================
-      // SOMENTE ADMIN_RH
+      // VALIDAR ADM/RH
       // ======================================================
 
       const {
         data: callerProfile,
-        error: profileError
+        error: callerError
       } =
         await admin
-          .from("profiles")
-          .select(
-            "role, active"
-          )
+          .from('profiles')
+          .select(`
+            id,
+            role,
+            active
+          `)
           .eq(
-            "id",
-            caller.id
+            'id',
+            userData.user.id
           )
           .single();
 
 
       if (
-        profileError ||
-        !callerProfile ||
-        !callerProfile.active ||
-        callerProfile.role !==
-          "ADMIN_RH"
+        callerError ||
+        !callerProfile
       ) {
 
-        return jsonResponse(
-          {
-            error:
-              "Somente ADM/RH pode cadastrar usuários corporativos."
-          },
-          403
+        throw new Error(
+          'Perfil do solicitante não encontrado.'
+        );
+
+      }
+
+
+      if (
+        !callerProfile.active
+        ||
+        callerProfile.role !==
+        'ADMIN_RH'
+      ) {
+
+        throw new Error(
+          'Apenas ADM/RH pode criar acessos.'
         );
 
       }
 
 
       // ======================================================
-      // DADOS RECEBIDOS
+      // BODY
       // ======================================================
 
       const body =
@@ -178,14 +215,14 @@ Deno.serve(
 
       const fullName =
         String(
-          body.fullName || ""
+          body.fullName || ''
         )
           .trim();
 
 
       const email =
         String(
-          body.email || ""
+          body.email || ''
         )
           .trim()
           .toLowerCase();
@@ -193,13 +230,13 @@ Deno.serve(
 
       const password =
         String(
-          body.password || ""
+          body.password || ''
         );
 
 
       const role =
         String(
-          body.role || ""
+          body.role || ''
         )
           .trim();
 
@@ -212,18 +249,22 @@ Deno.serve(
           : [];
 
 
+      const periodLinks =
+        Array.isArray(
+          body.periodLinks
+        )
+          ? body.periodLinks
+          : [];
+
+
       // ======================================================
       // VALIDAÇÕES
       // ======================================================
 
       if (!fullName) {
 
-        return jsonResponse(
-          {
-            error:
-              "Informe o nome do usuário."
-          },
-          400
+        throw new Error(
+          'Nome completo obrigatório.'
         );
 
       }
@@ -231,16 +272,12 @@ Deno.serve(
 
       if (
         !email.endsWith(
-          "@shopee.com"
+          '@shopee.com'
         )
       ) {
 
-        return jsonResponse(
-          {
-            error:
-              "Utilize um e-mail corporativo @shopee.com."
-          },
-          400
+        throw new Error(
+          'Utilize um e-mail @shopee.com.'
         );
 
       }
@@ -250,283 +287,428 @@ Deno.serve(
         password.length < 8
       ) {
 
-        return jsonResponse(
-          {
-            error:
-              "A senha inicial deve possuir pelo menos 8 caracteres."
-          },
-          400
+        throw new Error(
+          'A senha precisa ter pelo menos 8 caracteres.'
         );
 
       }
 
 
       if (
-        role !== "LEADER" &&
-        role !== "HR_MANAGER"
+        ![
+          'LEADER',
+          'HR_MANAGER'
+        ].includes(role)
       ) {
 
-        return jsonResponse(
-          {
-            error:
-              "Perfil inválido."
-          },
-          400
+        throw new Error(
+          'Perfil corporativo inválido.'
         );
 
       }
 
 
       if (
-        role === "LEADER" &&
+        role ===
+        'LEADER'
+        &&
         operationIds.length === 0
       ) {
 
-        return jsonResponse(
-          {
-            error:
-              "Selecione pelo menos uma operação para a liderança."
-          },
-          400
+        throw new Error(
+          'Selecione pelo menos uma operação para o líder.'
         );
 
       }
 
 
       // ======================================================
-      // CRIAR AUTH
+      // CRIAR AUTH USER
       // ======================================================
 
       const {
-        data: authData,
-        error: authError
+        data: created,
+        error: createAuthError
       } =
         await admin
           .auth
           .admin
           .createUser({
+
             email,
+
             password,
 
             email_confirm:
               true,
 
             user_metadata: {
-              full_name:
-                fullName,
 
-              role
+              full_name:
+                fullName
+
             }
+
           });
 
 
       if (
-        authError ||
-        !authData.user
+        createAuthError ||
+        !created.user
       ) {
 
-        return jsonResponse(
-          {
-            error:
-              authError?.message ||
-              "Não foi possível criar o usuário."
-          },
-          400
+        throw new Error(
+          createAuthError?.message
+          ||
+          'Não foi possível criar o usuário.'
         );
 
       }
 
 
-      const userId =
-        authData.user.id;
+      createdUserId =
+        created.user.id;
 
 
-      try {
+      // ======================================================
+      // PROFILE
+      // ======================================================
 
-        // ====================================================
-        // PROFILE
-        // ====================================================
+      const {
+        error: profileError
+      } =
+        await admin
+          .from('profiles')
+          .insert({
+
+            id:
+              createdUserId,
+
+            full_name:
+              fullName,
+
+            role,
+
+            corporate_email:
+              email,
+
+            must_change_password:
+              true,
+
+            active:
+              true
+
+          });
+
+
+      if (profileError) {
+
+        throw new Error(
+          profileError.message
+        );
+
+      }
+
+
+      // ======================================================
+      // PREFERÊNCIA
+      // ======================================================
+
+      const {
+        error: preferenceError
+      } =
+        await admin
+          .from(
+            'user_preferences'
+          )
+          .upsert({
+
+            user_id:
+              createdUserId,
+
+            theme:
+              'light'
+
+          });
+
+
+      if (preferenceError) {
+
+        throw new Error(
+          preferenceError.message
+        );
+
+      }
+
+
+      // ======================================================
+      // OPERAÇÕES DO LÍDER
+      // ======================================================
+
+      if (
+        role ===
+        'LEADER'
+      ) {
+
+        const uniqueOperationIds =
+          [
+            ...new Set(
+              operationIds
+            )
+          ];
+
 
         const {
-          error:
-            insertProfileError
-        } =
-          await admin
-            .from("profiles")
-            .insert({
-              id:
-                userId,
-
-              full_name:
-                fullName,
-
-              role,
-
-              corporate_email:
-                email,
-
-              must_change_password:
-                true,
-
-              active:
-                true
-            });
-
-
-        if (insertProfileError) {
-          throw insertProfileError;
-        }
-
-
-        // ====================================================
-        // PREFERÊNCIA
-        // ====================================================
-
-        const {
-          error:
-            preferenceError
+          error: operationError
         } =
           await admin
             .from(
-              "user_preferences"
+              'leader_operations'
             )
-            .insert({
-              user_id:
-                userId,
+            .insert(
 
-              theme:
-                "light"
-            });
+              uniqueOperationIds.map(
+                operationId => ({
+
+                  leader_id:
+                    createdUserId,
+
+                  operation_id:
+                    operationId
+
+                })
+              )
+
+            );
 
 
-        if (preferenceError) {
-          throw preferenceError;
+        if (operationError) {
+
+          throw new Error(
+            operationError.message
+          );
+
         }
 
 
         // ====================================================
-        // OPERAÇÕES DO LÍDER
+        // PERÍODOS OPCIONAIS
         // ====================================================
 
-        if (
-          role === "LEADER"
-        ) {
+        const validLinks =
+          periodLinks
+            .filter(
+              item =>
 
-          const links =
-            operationIds.map(
-              operationId => ({
+                item
+                &&
+                item.operationId
+                &&
+                item.periodId
+
+            )
+            .map(
+              item => ({
+
                 leader_id:
-                  userId,
+                  createdUserId,
 
                 operation_id:
-                  operationId
+                  item.operationId,
+
+                period_id:
+                  item.periodId
+
               })
             );
 
 
+        if (
+          validLinks.length > 0
+        ) {
+
           const {
-            error:
-              operationError
+            error: periodError
           } =
             await admin
               .from(
-                "leader_operations"
+                'leader_operation_periods'
               )
               .insert(
-                links
+                validLinks
               );
 
 
-          if (operationError) {
-            throw operationError;
+          if (periodError) {
+
+            throw new Error(
+              periodError.message
+            );
+
           }
 
         }
 
-
-        // ====================================================
-        // AUDITORIA
-        // ====================================================
-
-        await admin
-          .from(
-            "activity_log"
-          )
-          .insert({
-            user_id:
-              caller.id,
-
-            action:
-              "CORPORATE_USER_CREATED",
-
-            entity_type:
-              "profile",
-
-            entity_id:
-              userId,
-
-            details: {
-              full_name:
-                fullName,
-
-              email,
-
-              role,
-
-              operations:
-                operationIds
-            }
-          });
+      }
 
 
-        return jsonResponse({
+      // ======================================================
+      // AUDITORIA
+      // ======================================================
+
+      await admin
+        .from(
+          'activity_log'
+        )
+        .insert({
+
+          user_id:
+            userData.user.id,
+
+          action:
+            'CORPORATE_USER_CREATED',
+
+          entity_type:
+            'profile',
+
+          entity_id:
+            createdUserId,
+
+          details: {
+
+            role,
+
+            email,
+
+            operation_ids:
+              operationIds
+
+          }
+
+        });
+
+
+      return new Response(
+
+        JSON.stringify({
+
           success:
             true,
 
-          userId,
+          userId:
+            createdUserId
 
-          message:
-            "Usuário criado com sucesso."
-        });
+        }),
 
-      }
+        {
 
-      catch (databaseError) {
+          status:
+            200,
 
-        // rollback Auth
-        await admin
-          .auth
-          .admin
-          .deleteUser(
-            userId
-          );
+          headers: {
 
+            ...corsHeaders,
 
-        throw databaseError;
+            'Content-Type':
+              'application/json'
 
-      }
+          }
+
+        }
+
+      );
 
     }
 
     catch (error) {
 
       console.error(
-        "CREATE CORPORATE USER ERROR",
         error
       );
 
 
-      return jsonResponse(
-        {
+      // ======================================================
+      // ROLLBACK
+      // ======================================================
+
+      if (
+        createdUserId
+      ) {
+
+        try {
+
+          const supabaseUrl =
+            Deno.env.get(
+              'SUPABASE_URL'
+            )!;
+
+
+          const serviceRoleKey =
+            Deno.env.get(
+              'SUPABASE_SERVICE_ROLE_KEY'
+            )!;
+
+
+          const admin =
+            createClient(
+              supabaseUrl,
+              serviceRoleKey
+            );
+
+
+          await admin
+            .auth
+            .admin
+            .deleteUser(
+              createdUserId
+            );
+
+        }
+
+        catch (
+          rollbackError
+        ) {
+
+          console.error(
+            'Erro no rollback:',
+            rollbackError
+          );
+
+        }
+
+      }
+
+
+      return new Response(
+
+        JSON.stringify({
+
           success:
             false,
 
           error:
             error instanceof Error
               ? error.message
-              : "Erro ao cadastrar usuário."
-        },
-        500
+              : 'Erro interno.'
+
+        }),
+
+        {
+
+          status:
+            400,
+
+          headers: {
+
+            ...corsHeaders,
+
+            'Content-Type':
+              'application/json'
+
+          }
+
+        }
+
       );
 
     }
