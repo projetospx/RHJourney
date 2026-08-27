@@ -194,30 +194,49 @@ async function initializeApp() {
 
 function applyRolePermissions() {
 
-  const adminElements =
-    document.querySelectorAll(
+  const role =
+    currentProfile.role;
+
+
+  // Recursos exclusivamente administrativos
+  document
+    .querySelectorAll(
       '.admin-only'
-    );
-
-
-  if (
-    currentProfile.role !==
-    'ADMIN_RH'
-  ) {
-
-    adminElements.forEach(
+    )
+    .forEach(
       element => {
 
         element.style.display =
-          'none';
+          role === 'ADMIN_RH'
+            ? ''
+            : 'none';
 
       }
     );
 
-  }
+
+  // Recursos gerenciais:
+  // ADM/RH + Gestor RH
+  document
+    .querySelectorAll(
+      '.management-view'
+    )
+    .forEach(
+      element => {
+
+        element.style.display =
+          (
+            role === 'ADMIN_RH'
+            ||
+            role === 'HR_MANAGER'
+          )
+            ? ''
+            : 'none';
+
+      }
+    );
 
 }
-
 
 // ============================================================
 // USUÁRIO
