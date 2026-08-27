@@ -9,6 +9,7 @@ let currentProfile = null;
 let importRows = [];
 let selectedImportFile = null;
 
+// Configurações
 let regionalsCache = [];
 let regionalCurrentPage = 1;
 
@@ -18,7 +19,13 @@ let operationCurrentPage = 1;
 
 let corporateUsersCache = [];
 let corporateOperationsCache = [];
+let corporateLeaderPeriodLinks = [];
 let corporateCurrentPage = 1;
+
+// Jornadas
+let journeysCache = [];
+let journeyLeaderContext = null;
+let journeyCurrentTab = 'all';
 
 const SETTINGS_PAGE_SIZE = 10;
 
@@ -319,7 +326,9 @@ function getInitials(name) {
   return (
     parts[0][0]
     +
-    parts[parts.length - 1][0]
+    parts[
+      parts.length - 1
+    ][0]
   )
     .toUpperCase();
 
@@ -341,14 +350,42 @@ async function loadDashboard() {
     'Visão Geral';
 
 
-  pageSubtitle.textContent =
-    (
-      currentProfile.role === 'ADMIN_RH'
-      ||
-      currentProfile.role === 'HR_MANAGER'
-    )
-      ? 'Acompanhe as jornadas dos novos colaboradores.'
-      : 'Acompanhe sua jornada e suas avaliações.';
+  if (
+    currentProfile.role ===
+    'ADMIN_RH'
+  ) {
+
+    pageSubtitle.textContent =
+      'Acompanhe os novos colaboradores e as jornadas em andamento.';
+
+  }
+
+  else if (
+    currentProfile.role ===
+    'HR_MANAGER'
+  ) {
+
+    pageSubtitle.textContent =
+      'Visão gerencial do Shopee Journey.';
+
+  }
+
+  else if (
+    currentProfile.role ===
+    'LEADER'
+  ) {
+
+    pageSubtitle.textContent =
+      'Acompanhe os colaboradores das suas operações.';
+
+  }
+
+  else {
+
+    pageSubtitle.textContent =
+      'Acompanhe sua jornada e suas avaliações.';
+
+  }
 
 
   showPageLoading();
@@ -396,7 +433,8 @@ async function loadAdminDashboard() {
       waitingResult,
       journeyResult,
       completedResult,
-      peopleResult
+      peopleResult,
+      withoutLeaderResult
     ] =
       await Promise.all([
 
@@ -450,26 +488,52 @@ async function loadAdminDashboard() {
               count: 'exact',
               head: true
             }
+          ),
+
+        journeySupabase
+          .from('employments')
+          .select(
+            'id',
+            {
+              count: 'exact',
+              head: true
+            }
+          )
+          .is(
+            'leader_id',
+            null
+          )
+          .in(
+            'status',
+            [
+              'WAITING',
+              'IN_JOURNEY'
+            ]
           )
 
       ]);
 
 
-    const resultError =
-      [
-        waitingResult,
-        journeyResult,
-        completedResult,
-        peopleResult
-      ]
-        .find(
-          result => result.error
-        )
-        ?.error;
+    const allResults = [
+
+      waitingResult,
+      journeyResult,
+      completedResult,
+      peopleResult,
+      withoutLeaderResult
+
+    ];
 
 
-    if (resultError) {
-      throw resultError;
+    const failed =
+      allResults.find(
+        result =>
+          result.error
+      );
+
+
+    if (failed?.error) {
+      throw failed.error;
     }
 
 
@@ -490,6 +554,9 @@ async function loadAdminDashboard() {
 
       totalPeople:
         peopleResult.count || 0,
+
+      withoutLeader:
+        withoutLeaderResult.count || 0,
 
       pending:
         pendingInfo.total
@@ -520,7 +587,9 @@ async function loadAdminDashboard() {
         </h2>
 
         <p>
-          ${escapeHTML(error.message)}
+          ${escapeHTML(
+            error.message
+          )}
         </p>
 
       </div>
@@ -729,84 +798,56 @@ function renderAdminDashboard(data) {
           <div>
 
             <h3>
-              Avaliações que precisam de atenção
+              Pontos que exigem atuação
             </h3>
 
             <p>
-              Controle de prazos das jornadas.
+              Rastreabilidade do acompanhamento.
             </p>
 
           </div>
 
-          <button
-            class="text-button"
-            type="button"
-            data-open-page="pending"
-          >
-            Ver todas
-          </button>
+        </div>
+
+
+        <div class="base-summary">
+
+
+          <div>
+
+            <span>
+              Sem liderança definida
+            </span>
+
+            <strong>
+              ${data.withoutLeader}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Avaliações pendentes
+            </span>
+
+            <strong>
+              ${data.pending}
+            </strong>
+
+          </div>
 
         </div>
 
 
-        ${
-          data.pending > 0
-
-          ? `
-
-            <div class="attention-box">
-
-              <div class="attention-icon">
-                !
-              </div>
-
-              <div>
-
-                <strong>
-
-                  ${data.pending}
-
-                  ${
-                    data.pending === 1
-                      ? 'avaliação necessita'
-                      : 'avaliações necessitam'
-                  }
-
-                  de acompanhamento
-
-                </strong>
-
-                <p>
-                  Consulte as pendências para identificar
-                  líderes e colaboradores.
-                </p>
-
-              </div>
-
-            </div>
-
-          `
-
-          : `
-
-            <div class="empty-state">
-
-              <div class="empty-icon">
-                ✓
-              </div>
-
-              <strong>
-                Tudo em dia
-              </strong>
-
-              <p>
-                Nenhuma avaliação vencida no momento.
-              </p>
-
-            </div>
-
-          `
-        }
+        <button
+          class="secondary-button full-button"
+          type="button"
+          data-open-page="journeys"
+        >
+          Ver Jornadas
+        </button>
 
       </section>
 
@@ -831,6 +872,7 @@ function renderAdminDashboard(data) {
 
 
         <div class="base-summary">
+
 
           <div>
 
@@ -909,21 +951,20 @@ pageContent
     'click',
     event => {
 
-      const openPageButton =
+      const button =
         event.target.closest(
           '[data-open-page]'
         );
 
 
-      if (openPageButton) {
-
-        openPage(
-          openPageButton
-            .dataset
-            .openPage
-        );
-
+      if (!button) {
+        return;
       }
+
+
+      openPage(
+        button.dataset.openPage
+      );
 
     }
   );
@@ -1061,59 +1102,279 @@ async function calculatePendingAssessments() {
 
 
 // ============================================================
-// DASHBOARD LÍDER
+// DASHBOARD LIDERANÇA
 // ============================================================
 
 async function loadLeaderDashboard() {
 
-  pageContent.innerHTML = `
+  try {
 
-    <div class="welcome-banner">
+    const {
+      data: employments,
+      error
+    } =
+      await journeySupabase
+        .from('employments')
+        .select(`
+          id,
+          leader_id,
+          status,
+          operation_id,
+          period_id
+        `);
 
-      <div>
 
-        <span class="welcome-label">
-          JORNADA DA EQUIPE
-        </span>
+    if (error) {
+      throw error;
+    }
 
-        <h2>
-          Olá,
-          ${escapeHTML(
-            currentProfile
-              .full_name
-              .split(' ')[0]
-          )}
-          👋
-        </h2>
+
+    const {
+      data: identifications
+    } =
+      await journeySupabase
+        .from(
+          'leader_employee_identifications'
+        )
+        .select(`
+          employment_id,
+          decision
+        `)
+        .eq(
+          'leader_id',
+          currentProfile.id
+        );
+
+
+    const leaderContext =
+      await getLeaderContext();
+
+
+    let toIdentify = 0;
+
+
+    for (
+      const employment
+      of employments || []
+    ) {
+
+      if (
+        employment.leader_id
+      ) {
+        continue;
+      }
+
+
+      const ownDecision =
+        (
+          identifications
+          ||
+          []
+        )
+          .find(
+            item =>
+              item.employment_id ===
+              employment.id
+          );
+
+
+      if (
+        ownDecision?.decision ===
+        'NOT_MINE'
+      ) {
+        continue;
+      }
+
+
+      if (
+        leaderCanIdentifyEmployment(
+          employment,
+          leaderContext
+        )
+      ) {
+
+        toIdentify++;
+
+      }
+
+    }
+
+
+    const mine =
+      (
+        employments
+        ||
+        []
+      )
+        .filter(
+          item =>
+            item.leader_id ===
+            currentProfile.id
+        )
+        .length;
+
+
+    const inJourney =
+      (
+        employments
+        ||
+        []
+      )
+        .filter(
+          item =>
+            item.status ===
+            'IN_JOURNEY'
+        )
+        .length;
+
+
+    const firstName =
+      currentProfile
+        .full_name
+        .split(' ')[0];
+
+
+    pageContent.innerHTML = `
+
+      <div class="welcome-banner">
+
+        <div>
+
+          <span class="welcome-label">
+            JORNADA DA EQUIPE
+          </span>
+
+          <h2>
+            Olá,
+            ${escapeHTML(firstName)}
+            👋
+          </h2>
+
+          <p>
+            Acompanhe os novos colaboradores
+            das operações vinculadas a você.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="metric-grid">
+
+
+        <button
+          class="metric-card"
+          type="button"
+          data-open-page="journeys"
+        >
+
+          <div class="metric-card-top">
+
+            <div class="metric-icon orange">
+              ↗
+            </div>
+
+            <span class="metric-status">
+              Ativos
+            </span>
+
+          </div>
+
+          <strong>
+            ${inJourney}
+          </strong>
+
+          <span>
+            Jornadas na operação
+          </span>
+
+        </button>
+
+
+        <button
+          class="metric-card"
+          type="button"
+          data-open-page="journeys"
+        >
+
+          <div class="metric-card-top">
+
+            <div class="metric-icon blue">
+              ?
+            </div>
+
+            <span class="metric-status">
+              Identificar
+            </span>
+
+          </div>
+
+          <strong>
+            ${toIdentify}
+          </strong>
+
+          <span>
+            A identificar
+          </span>
+
+        </button>
+
+
+        <button
+          class="metric-card"
+          type="button"
+          data-open-page="journeys"
+        >
+
+          <div class="metric-card-top">
+
+            <div class="metric-icon green">
+              ✓
+            </div>
+
+            <span class="metric-status">
+              Equipe
+            </span>
+
+          </div>
+
+          <strong>
+            ${mine}
+          </strong>
+
+          <span>
+            Meus colaboradores
+          </span>
+
+        </button>
+
+      </div>
+
+    `;
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    pageContent.innerHTML = `
+
+      <div class="system-error">
 
         <p>
-          Aqui você acompanhará os novos colaboradores
-          das operações vinculadas a você.
+          ${escapeHTML(
+            error.message
+          )}
         </p>
 
       </div>
 
-    </div>
+    `;
 
-
-    <div class="empty-state large">
-
-      <div class="empty-icon">
-        ↗
-      </div>
-
-      <strong>
-        Jornada da Equipe
-      </strong>
-
-      <p>
-        Em breve esta área mostrará Todos da Operação,
-        A Identificar e Meus Colaboradores.
-      </p>
-
-    </div>
-
-  `;
+  }
 
 }
 
@@ -1154,22 +1415,13 @@ async function loadEmployeeDashboard() {
     </div>
 
 
-    <div class="empty-state large">
-
-      <div class="empty-icon">
-        ✓
-      </div>
-
-      <strong>
-        Minha Jornada
-      </strong>
-
-      <p>
-        Seus checkpoints aparecerão aqui
-        automaticamente.
-      </p>
-
-    </div>
+    <button
+      class="secondary-button"
+      type="button"
+      data-open-page="journeys"
+    >
+      Ver minha Jornada
+    </button>
 
   `;
 
@@ -1247,17 +1499,20 @@ async function openPage(page) {
     case 'journeys':
 
       pageTitle.textContent =
-        'Jornadas';
+        currentProfile.role ===
+        'EMPLOYEE'
+          ? 'Minha Jornada'
+          : 'Jornadas';
 
 
       pageSubtitle.textContent =
-        'Acompanhe o progresso D1 → D90.';
+        currentProfile.role ===
+        'EMPLOYEE'
+          ? 'Acompanhe seu progresso do D1 ao D90.'
+          : 'Acompanhe o progresso dos novos colaboradores do D1 ao D90.';
 
 
-      renderComingSoon(
-        'Gestão de Jornadas',
-        'Aqui ficarão os colaboradores atualmente em acompanhamento.'
-      );
+      await loadJourneysPage();
 
       break;
 
@@ -1725,8 +1980,8 @@ async function loadNewEmployeesPage() {
           </h3>
 
           <p>
-            Colaboradores cadastrados que ainda
-            não iniciaram a jornada.
+            A Jornada pode ser iniciada mesmo
+            que a liderança ainda não esteja definida.
           </p>
 
         </div>
@@ -2039,7 +2294,7 @@ function downloadEmployeeTemplate() {
 
     [
       'HUB/OPERAÇÃO',
-      'Utilize exatamente o código da Operação cadastrada no Journey.'
+      'Utilize o código da Operação cadastrada no Journey.'
     ],
 
     [
@@ -2056,12 +2311,7 @@ function downloadEmployeeTemplate() {
 
     [
       'IMPORTANTE',
-      'A Operação precisa existir previamente no Shopee Journey.'
-    ],
-
-    [
-      'IMPORTANTE',
-      'A importação não inicia automaticamente a jornada.'
+      'A Jornada pode ser iniciada antes da identificação do líder responsável.'
     ]
 
   ];
@@ -2160,7 +2410,7 @@ function closeImportModal() {
 
 
 // ============================================================
-// NORMALIZAÇÃO DA PLANILHA
+// NORMALIZAR CABEÇALHO
 // ============================================================
 
 function normalizeHeader(value) {
@@ -2188,7 +2438,7 @@ function normalizeHeader(value) {
 
 
 // ============================================================
-// CONVERSÃO DE DATA
+// DATA
 // ============================================================
 
 function excelDateToISO(value) {
@@ -2419,18 +2669,12 @@ function buildValidISODate(
     '-'
     +
     String(month)
-      .padStart(
-        2,
-        '0'
-      )
+      .padStart(2, '0')
     +
     '-'
     +
     String(day)
-      .padStart(
-        2,
-        '0'
-      )
+      .padStart(2, '0')
   );
 
 }
@@ -2474,8 +2718,7 @@ async function handleEmployeeFile(event) {
 
 
     const firstSheet =
-      workbook
-        .SheetNames[0];
+      workbook.SheetNames[0];
 
 
     const sheet =
@@ -2727,7 +2970,7 @@ function validateImportRow(row) {
 
 
 // ============================================================
-// PRÉVIA DA IMPORTAÇÃO
+// PRÉVIA IMPORTAÇÃO
 // ============================================================
 
 function renderImportPreview() {
@@ -2797,26 +3040,34 @@ function renderImportPreview() {
               </td>
 
               <td>
+
                 <strong>
                   ${escapeHTML(
                     row.nome ||
                     'Não informado'
                   )}
                 </strong>
+
               </td>
 
               <td>
                 ${escapeHTML(
-                  formatCPF(row.cpf)
+                  formatCPF(
+                    row.cpf
+                  )
                 )}
               </td>
 
               <td>
-                ${escapeHTML(row.bpo)}
+                ${escapeHTML(
+                  row.bpo
+                )}
               </td>
 
               <td>
-                ${escapeHTML(row.operacao)}
+                ${escapeHTML(
+                  row.operacao
+                )}
               </td>
 
               <td>
@@ -2825,12 +3076,15 @@ function renderImportPreview() {
                   isValid
 
                   ? `
+
                     <span class="status-pill success">
                       Válido
                     </span>
+
                   `
 
                   : `
+
                     <span
                       class="status-pill error"
                       title="${escapeHTML(
@@ -2839,6 +3093,7 @@ function renderImportPreview() {
                     >
                       Incompleto
                     </span>
+
                   `
                 }
 
@@ -2858,41 +3113,20 @@ function renderImportPreview() {
     <div class="import-summary">
 
       <div>
-
-        <span>
-          Registros
-        </span>
-
+        <span>Registros</span>
         <strong>
           ${importRows.length}
         </strong>
-
       </div>
-
 
       <div class="summary-valid">
-
-        <span>
-          Válidos
-        </span>
-
-        <strong>
-          ${valid}
-        </strong>
-
+        <span>Válidos</span>
+        <strong>${valid}</strong>
       </div>
 
-
       <div class="summary-error">
-
-        <span>
-          Com problemas
-        </span>
-
-        <strong>
-          ${invalid}
-        </strong>
-
+        <span>Com problemas</span>
+        <strong>${invalid}</strong>
       </div>
 
     </div>
@@ -2906,7 +3140,9 @@ function renderImportPreview() {
 
       <strong>
         ${escapeHTML(
-          selectedImportFile?.name || ''
+          selectedImportFile?.name
+          ||
+          ''
         )}
       </strong>
 
@@ -2929,7 +3165,6 @@ function renderImportPreview() {
           </tr>
 
         </thead>
-
 
         <tbody>
           ${rowsHTML}
@@ -3165,7 +3400,7 @@ async function confirmEmployeeImport() {
 
 
 // ============================================================
-// RESULTADO DA IMPORTAÇÃO
+// RESULTADO IMPORTAÇÃO
 // ============================================================
 
 function renderImportResult(result) {
@@ -3323,7 +3558,7 @@ async function finishImport() {
 
 
 // ============================================================
-// LISTAR COLABORADORES AGUARDANDO
+// COLABORADORES AGUARDANDO
 // ============================================================
 
 async function loadWaitingEmployees() {
@@ -3353,6 +3588,7 @@ async function loadWaitingEmployees() {
         work_schedule,
         status,
         leader_id,
+        period_id,
 
         people (
           id,
@@ -3376,6 +3612,11 @@ async function loadWaitingEmployees() {
             id,
             name
           )
+        ),
+
+        period:operation_periods!employments_period_id_fkey (
+          id,
+          name
         ),
 
         leader:profiles!employments_leader_id_fkey (
@@ -3459,13 +3700,12 @@ async function loadWaitingEmployees() {
 
           <tr>
             <th>Colaborador</th>
-            <th>CPF</th>
             <th>Regional</th>
             <th>Operação</th>
             <th>BPO</th>
             <th>Admissão</th>
-            <th>Horário / Escala</th>
-            <th>Status</th>
+            <th>Escala</th>
+            <th>Liderança</th>
             <th>Ações</th>
           </tr>
 
@@ -3494,10 +3734,9 @@ async function loadWaitingEmployees() {
 
                       <span class="table-subtext">
                         ${escapeHTML(
-                          item.people
-                            ?.email
-                          ||
-                          ''
+                          formatCPF(
+                            item.people?.cpf
+                          )
                         )}
                       </span>
 
@@ -3505,25 +3744,14 @@ async function loadWaitingEmployees() {
 
 
                     <td>
+
                       ${escapeHTML(
-                        formatCPF(
-                          item.people?.cpf
-                        )
+                        item.operations
+                          ?.regionals
+                          ?.name
+                        ||
+                        'Sem Regional'
                       )}
-                    </td>
-
-
-                    <td>
-
-                      ${
-                        escapeHTML(
-                          item.operations
-                            ?.regionals
-                            ?.name
-                          ||
-                          'Sem Regional'
-                        )
-                      }
 
                     </td>
 
@@ -3549,10 +3777,8 @@ async function loadWaitingEmployees() {
 
 
                     <td>
-                      ${escapeHTML(
-                        formatDateBR(
-                          item.admission_date
-                        )
+                      ${formatDateBR(
+                        item.admission_date
                       )}
                     </td>
 
@@ -3568,25 +3794,60 @@ async function loadWaitingEmployees() {
 
                     <td>
 
-                      <span class="status-pill waiting">
-                        Aguardando início
-                      </span>
+                      ${
+                        item.leader
+                          ?.full_name
+
+                        ? `
+
+                          <span class="status-pill success">
+                            ${escapeHTML(
+                              item.leader.full_name
+                            )}
+                          </span>
+
+                        `
+
+                        : `
+
+                          <span class="status-pill warning">
+                            Ainda não definida
+                          </span>
+
+                        `
+                      }
 
                     </td>
 
 
                     <td>
 
-                      <button
-                        class="danger-text-button delete-waiting-employee"
-                        type="button"
-                        data-employment-id="${item.id}"
-                        data-employee-name="${escapeHTML(
-                          item.people?.full_name || ''
-                        )}"
-                      >
-                        Excluir
-                      </button>
+                      <div class="row-actions">
+
+                        <button
+                          class="primary-action-button start-waiting-journey"
+                          type="button"
+                          data-id="${item.id}"
+                          data-name="${escapeHTML(
+                            item.people?.full_name || ''
+                          )}"
+                        >
+                          ▶ Iniciar Jornada
+                        </button>
+
+
+                        <button
+                          class="danger-action delete-waiting-employee"
+                          type="button"
+                          data-id="${item.id}"
+                          data-name="${escapeHTML(
+                            item.people?.full_name || ''
+                          )}"
+                        >
+                          Excluir
+                        </button>
+
+                      </div>
 
                     </td>
 
@@ -3608,6 +3869,29 @@ async function loadWaitingEmployees() {
 
   container
     .querySelectorAll(
+      '.start-waiting-journey'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            startEmployeeJourney(
+              button.dataset.id,
+              button.dataset.name
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
       '.delete-waiting-employee'
     )
     .forEach(
@@ -3618,8 +3902,8 @@ async function loadWaitingEmployees() {
           () => {
 
             deleteEmployee(
-              button.dataset.employmentId,
-              button.dataset.employeeName
+              button.dataset.id,
+              button.dataset.name
             );
 
           }
@@ -3627,6 +3911,80 @@ async function loadWaitingEmployees() {
 
       }
     );
+
+}
+
+
+// ============================================================
+// INICIAR JORNADA
+// ============================================================
+
+async function startEmployeeJourney(
+  employmentId,
+  employeeName
+) {
+
+  if (
+    currentProfile.role !==
+    'ADMIN_RH'
+  ) {
+    return;
+  }
+
+
+  const confirmed =
+    confirm(
+      `Iniciar a Jornada de ${employeeName}?\n\n` +
+      `O colaborador poderá responder normalmente mesmo que ainda não exista liderança responsável definida.`
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  try {
+
+    const {
+      error
+    } =
+      await journeySupabase
+        .rpc(
+          'start_journey',
+          {
+            p_employment_id:
+              employmentId
+          }
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    alert(
+      `Jornada de ${employeeName} iniciada com sucesso.`
+    );
+
+
+    await loadNewEmployeesPage();
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    alert(
+      error.message
+      ||
+      'Não foi possível iniciar a Jornada.'
+    );
+
+  }
 
 }
 
@@ -3651,8 +4009,8 @@ async function deleteEmployee(
   const confirmed =
     confirm(
       `Excluir definitivamente ${employeeName}?\n\n` +
-      `Esta ação poderá remover jornada, avaliações, respostas e acesso do colaborador.\n\n` +
-      `A ação não pode ser desfeita.`
+      `Esta ação pode remover a Jornada, avaliações, respostas e acesso do colaborador.\n\n` +
+      `Não pode ser desfeita.`
     );
 
 
@@ -3709,13 +4067,31 @@ async function deleteEmployee(
     );
 
 
-    await loadWaitingEmployees();
+    if (
+      document.querySelector(
+        '.menu-item.active'
+      )
+        ?.dataset
+        ?.page ===
+      'journeys'
+    ) {
+
+      await loadJourneysPage();
+
+    }
+
+    else {
+
+      await loadWaitingEmployees();
+
+    }
 
   }
 
   catch (error) {
 
     console.error(error);
+
 
     alert(
       error.message
@@ -3729,7 +4105,2309 @@ async function deleteEmployee(
 
 
 // ============================================================
-// CONFIGURAÇÕES - HOME
+// ============================================================
+// JORNADAS
+// ============================================================
+// ============================================================
+
+async function loadJourneysPage() {
+
+  showPageLoading();
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await journeySupabase
+        .from('employments')
+        .select(`
+          id,
+          person_id,
+          operation_id,
+          bpo_id,
+          leader_id,
+          period_id,
+          admission_date,
+          work_schedule,
+          status,
+
+          people (
+            id,
+            auth_user_id,
+            full_name,
+            cpf,
+            email
+          ),
+
+          bpos (
+            id,
+            name
+          ),
+
+          operations (
+            id,
+            name,
+            regional_id,
+            use_period_filter,
+
+            regionals (
+              id,
+              name
+            )
+          ),
+
+          period:operation_periods!employments_period_id_fkey (
+            id,
+            name
+          ),
+
+          leader:profiles!employments_leader_id_fkey (
+            id,
+            full_name,
+            corporate_email
+          ),
+
+          journeys (
+            id,
+            status,
+            started_at,
+            completed_at,
+
+            journey_checkpoints (
+              id,
+              checkpoint,
+              opens_at,
+              due_at
+            )
+          )
+        `)
+        .order(
+          'admission_date',
+          {
+            ascending: false
+          }
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    journeysCache =
+      data || [];
+
+
+    if (
+      currentProfile.role ===
+      'EMPLOYEE'
+    ) {
+
+      renderEmployeeJourney();
+
+      return;
+
+    }
+
+
+    if (
+      currentProfile.role ===
+      'LEADER'
+    ) {
+
+      journeyLeaderContext =
+        await getLeaderContext();
+
+
+      await loadLeaderIdentificationData();
+
+
+      journeyCurrentTab =
+        'all';
+
+
+      renderLeaderJourneys();
+
+      return;
+
+    }
+
+
+    journeyCurrentTab =
+      'all';
+
+
+    renderManagementJourneys();
+
+  }
+
+  catch (error) {
+
+    console.error(
+      'Erro Jornadas:',
+      error
+    );
+
+
+    pageContent.innerHTML = `
+
+      <div class="system-error">
+
+        <h2>
+          Não foi possível carregar as Jornadas
+        </h2>
+
+        <p>
+          ${escapeHTML(
+            error.message
+          )}
+        </p>
+
+      </div>
+
+    `;
+
+  }
+
+}
+
+
+// ============================================================
+// CONTEXTO DA LIDERANÇA
+// ============================================================
+
+async function getLeaderContext() {
+
+  const [
+    operationsResult,
+    periodsResult
+  ] =
+    await Promise.all([
+
+      journeySupabase
+        .from(
+          'leader_operations'
+        )
+        .select(`
+          operation_id
+        `)
+        .eq(
+          'leader_id',
+          currentProfile.id
+        ),
+
+      journeySupabase
+        .from(
+          'leader_operation_periods'
+        )
+        .select(`
+          operation_id,
+          period_id
+        `)
+        .eq(
+          'leader_id',
+          currentProfile.id
+        )
+
+    ]);
+
+
+  if (
+    operationsResult.error
+  ) {
+
+    throw operationsResult.error;
+
+  }
+
+
+  if (
+    periodsResult.error
+  ) {
+
+    console.warn(
+      periodsResult.error
+    );
+
+  }
+
+
+  return {
+
+    operationIds:
+      (
+        operationsResult.data
+        ||
+        []
+      )
+        .map(
+          item =>
+            item.operation_id
+        ),
+
+
+    periodLinks:
+      periodsResult.data
+      ||
+      []
+
+  };
+
+}
+
+
+async function loadLeaderIdentificationData() {
+
+  const {
+    data,
+    error
+  } =
+    await journeySupabase
+      .from(
+        'leader_employee_identifications'
+      )
+      .select(`
+        employment_id,
+        decision,
+        updated_at
+      `)
+      .eq(
+        'leader_id',
+        currentProfile.id
+      );
+
+
+  if (error) {
+
+    console.warn(
+      error
+    );
+
+  }
+
+
+  journeyLeaderContext.identifications =
+    data || [];
+
+}
+
+
+// ============================================================
+// REGRA DE ELEGIBILIDADE POR PERÍODO
+// ============================================================
+
+function leaderCanIdentifyEmployment(
+  employment,
+  context
+) {
+
+  if (
+    !context
+    ||
+    !context.operationIds.includes(
+      employment.operation_id
+    )
+  ) {
+
+    return false;
+
+  }
+
+
+  const operation =
+    employment.operations;
+
+
+  // A operação não utiliza filtro por período
+  if (
+    !operation?.use_period_filter
+  ) {
+
+    return true;
+
+  }
+
+
+  // A operação usa período,
+  // mas o colaborador ainda não tem período definido.
+  // Nesse caso não bloqueamos.
+  if (
+    !employment.period_id
+  ) {
+
+    return true;
+
+  }
+
+
+  return (
+    context.periodLinks
+    ||
+    []
+  )
+    .some(
+      link =>
+
+        link.operation_id ===
+          employment.operation_id
+
+        &&
+
+        link.period_id ===
+          employment.period_id
+
+    );
+
+}
+
+
+// ============================================================
+// JORNADA - GESTÃO RH
+// ============================================================
+
+function renderManagementJourneys() {
+
+  const isAdmin =
+    currentProfile.role ===
+    'ADMIN_RH';
+
+
+  const regionals =
+    getUniqueRegionals(
+      journeysCache
+    );
+
+
+  const operations =
+    getUniqueOperations(
+      journeysCache
+    );
+
+
+  pageContent.innerHTML = `
+
+    <div class="module-header">
+
+      <div>
+
+        <h2>
+          Jornadas
+        </h2>
+
+        <p>
+          Acompanhamento dos colaboradores
+          desde a admissão até o D90.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="journeyTabs"
+      class="settings-toolbar"
+    >
+
+      <button
+        class="secondary-button journey-tab active"
+        type="button"
+        data-tab="all"
+      >
+        Todas
+      </button>
+
+
+      <button
+        class="secondary-button journey-tab"
+        type="button"
+        data-tab="without-leader"
+      >
+        Sem liderança
+      </button>
+
+
+      <button
+        class="secondary-button journey-tab"
+        type="button"
+        data-tab="active"
+      >
+        Em andamento
+      </button>
+
+
+      <button
+        class="secondary-button journey-tab"
+        type="button"
+        data-tab="completed"
+      >
+        Concluídas
+      </button>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+
+      <div class="settings-toolbar">
+
+
+        <input
+          id="journeySearch"
+          type="search"
+          placeholder="Buscar colaborador..."
+        >
+
+
+        <select id="journeyRegionalFilter">
+
+          <option value="">
+            Todas as Regionais
+          </option>
+
+          ${
+            regionals
+              .map(
+                regional => `
+
+                  <option
+                    value="${regional.id}"
+                  >
+                    ${escapeHTML(
+                      regional.name
+                    )}
+                  </option>
+
+                `
+              )
+              .join('')
+          }
+
+        </select>
+
+
+        <select id="journeyOperationFilter">
+
+          <option value="">
+            Todas as Operações
+          </option>
+
+          ${
+            operations
+              .map(
+                operation => `
+
+                  <option
+                    value="${operation.id}"
+                  >
+                    ${escapeHTML(
+                      operation.name
+                    )}
+                  </option>
+
+                `
+              )
+              .join('')
+          }
+
+        </select>
+
+      </div>
+
+
+      <div id="managementJourneyList"></div>
+
+    </section>
+
+  `;
+
+
+  document
+    .querySelectorAll(
+      '.journey-tab'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            journeyCurrentTab =
+              button.dataset.tab;
+
+
+            document
+              .querySelectorAll(
+                '.journey-tab'
+              )
+              .forEach(
+                item =>
+                  item.classList
+                    .remove(
+                      'active'
+                    )
+              );
+
+
+            button.classList
+              .add(
+                'active'
+              );
+
+
+            renderManagementJourneyRows();
+
+          }
+        );
+
+      }
+    );
+
+
+  [
+    'journeySearch',
+    'journeyRegionalFilter',
+    'journeyOperationFilter'
+  ]
+    .forEach(
+      id => {
+
+        document
+          .getElementById(id)
+          ?.addEventListener(
+            id ===
+            'journeySearch'
+              ? 'input'
+              : 'change',
+            renderManagementJourneyRows
+          );
+
+      }
+    );
+
+
+  renderManagementJourneyRows(
+    isAdmin
+  );
+
+}
+
+
+function renderManagementJourneyRows() {
+
+  const container =
+    document.getElementById(
+      'managementJourneyList'
+    );
+
+
+  if (!container) {
+    return;
+  }
+
+
+  const search =
+    (
+      document
+        .getElementById(
+          'journeySearch'
+        )
+        ?.value
+      ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const regionalId =
+    document
+      .getElementById(
+        'journeyRegionalFilter'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const operationId =
+    document
+      .getElementById(
+        'journeyOperationFilter'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const filtered =
+    journeysCache.filter(
+      employment => {
+
+        const name =
+          employment.people
+            ?.full_name
+            ?.toLowerCase()
+          ||
+          '';
+
+
+        const searchOk =
+          !search
+          ||
+          name.includes(search)
+          ||
+          (
+            employment.people
+              ?.cpf
+            ||
+            ''
+          )
+            .includes(search);
+
+
+        const regionalOk =
+          !regionalId
+          ||
+          employment.operations
+            ?.regional_id ===
+          regionalId;
+
+
+        const operationOk =
+          !operationId
+          ||
+          employment.operation_id ===
+          operationId;
+
+
+        let tabOk =
+          true;
+
+
+        switch (
+          journeyCurrentTab
+        ) {
+
+          case 'without-leader':
+
+            tabOk =
+              !employment.leader_id
+              &&
+              employment.status !==
+              'COMPLETED';
+
+            break;
+
+
+          case 'active':
+
+            tabOk =
+              employment.status ===
+              'IN_JOURNEY';
+
+            break;
+
+
+          case 'completed':
+
+            tabOk =
+              employment.status ===
+              'COMPLETED';
+
+            break;
+
+        }
+
+
+        return (
+          searchOk
+          &&
+          regionalOk
+          &&
+          operationOk
+          &&
+          tabOk
+        );
+
+      }
+    );
+
+
+  if (
+    filtered.length === 0
+  ) {
+
+    container.innerHTML = `
+
+      <div class="empty-state">
+
+        <strong>
+          Nenhuma Jornada encontrada
+        </strong>
+
+        <p>
+          Ajuste os filtros utilizados.
+        </p>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  const isAdmin =
+    currentProfile.role ===
+    'ADMIN_RH';
+
+
+  container.innerHTML = `
+
+    <div class="table-wrapper">
+
+      <table class="journey-table">
+
+        <thead>
+
+          <tr>
+            <th>Colaborador</th>
+            <th>Regional</th>
+            <th>Operação</th>
+            <th>BPO</th>
+            <th>Liderança</th>
+            <th>Jornada</th>
+            <th>Checkpoint</th>
+            <th>Ações</th>
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            filtered
+              .map(
+                employment => {
+
+                  const journey =
+                    getEmploymentJourney(
+                      employment
+                    );
+
+
+                  const checkpoint =
+                    getCurrentCheckpoint(
+                      journey
+                    );
+
+
+                  return `
+
+                    <tr>
+
+                      <td>
+
+                        <strong>
+                          ${escapeHTML(
+                            employment.people
+                              ?.full_name
+                            ||
+                            ''
+                          )}
+                        </strong>
+
+                        <span class="table-subtext">
+                          Admissão:
+                          ${formatDateBR(
+                            employment.admission_date
+                          )}
+                        </span>
+
+                      </td>
+
+
+                      <td>
+                        ${escapeHTML(
+                          employment.operations
+                            ?.regionals
+                            ?.name
+                          ||
+                          '-'
+                        )}
+                      </td>
+
+
+                      <td>
+                        ${escapeHTML(
+                          employment.operations
+                            ?.name
+                          ||
+                          '-'
+                        )}
+                      </td>
+
+
+                      <td>
+                        ${escapeHTML(
+                          employment.bpos
+                            ?.name
+                          ||
+                          '-'
+                        )}
+                      </td>
+
+
+                      <td>
+
+                        ${
+                          employment.leader
+                            ?.full_name
+
+                          ? `
+
+                            <span class="status-pill success">
+                              ${escapeHTML(
+                                employment
+                                  .leader
+                                  .full_name
+                              )}
+                            </span>
+
+                          `
+
+                          : `
+
+                            <span class="status-pill warning">
+                              Não definida
+                            </span>
+
+                          `
+                        }
+
+                      </td>
+
+
+                      <td>
+
+                        ${
+                          employment.status ===
+                          'WAITING'
+
+                          ? `
+
+                            <span class="status-pill waiting">
+                              Aguardando início
+                            </span>
+
+                          `
+
+                          : employment.status ===
+                            'IN_JOURNEY'
+
+                            ? `
+
+                              <span class="status-pill success">
+                                Em andamento
+                              </span>
+
+                            `
+
+                            : `
+
+                              <span class="status-pill success">
+                                Concluída
+                              </span>
+
+                            `
+                        }
+
+                      </td>
+
+
+                      <td>
+
+                        ${
+                          checkpoint
+
+                          ? `
+
+                            <strong>
+                              ${escapeHTML(
+                                checkpoint.checkpoint
+                              )}
+                            </strong>
+
+                          `
+
+                          : '-'
+                        }
+
+                      </td>
+
+
+                      <td>
+
+                        <div class="row-actions">
+
+                          ${
+                            isAdmin
+                            &&
+                            employment.status ===
+                            'WAITING'
+
+                            ? `
+
+                              <button
+                                class="management-start-journey"
+                                type="button"
+                                data-id="${employment.id}"
+                                data-name="${escapeHTML(
+                                  employment.people
+                                    ?.full_name
+                                  ||
+                                  ''
+                                )}"
+                              >
+                                Iniciar
+                              </button>
+
+                            `
+
+                            : ''
+                          }
+
+
+                          ${
+                            isAdmin
+
+                            ? `
+
+                              <button
+                                class="danger-action management-delete-employee"
+                                type="button"
+                                data-id="${employment.id}"
+                                data-name="${escapeHTML(
+                                  employment.people
+                                    ?.full_name
+                                  ||
+                                  ''
+                                )}"
+                              >
+                                Excluir
+                              </button>
+
+                            `
+
+                            : ''
+                          }
+
+                        </div>
+
+                      </td>
+
+                    </tr>
+
+                  `;
+
+                }
+              )
+              .join('')
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  `;
+
+
+  container
+    .querySelectorAll(
+      '.management-start-journey'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            startEmployeeJourney(
+              button.dataset.id,
+              button.dataset.name
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
+      '.management-delete-employee'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            deleteEmployee(
+              button.dataset.id,
+              button.dataset.name
+            );
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// JORNADA - LÍDER
+// ============================================================
+
+function renderLeaderJourneys() {
+
+  const operations =
+    getUniqueOperations(
+      journeysCache
+    );
+
+
+  pageContent.innerHTML = `
+
+    <div class="module-header">
+
+      <div>
+
+        <h2>
+          Jornadas da Operação
+        </h2>
+
+        <p>
+          Identifique seus colaboradores
+          e acompanhe o desenvolvimento da equipe.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div
+      id="leaderJourneyTabs"
+      class="settings-toolbar"
+    >
+
+      <button
+        class="secondary-button leader-journey-tab active"
+        type="button"
+        data-tab="all"
+      >
+        Todos da Operação
+      </button>
+
+
+      <button
+        class="secondary-button leader-journey-tab"
+        type="button"
+        data-tab="identify"
+      >
+        A identificar
+      </button>
+
+
+      <button
+        class="secondary-button leader-journey-tab"
+        type="button"
+        data-tab="mine"
+      >
+        Meus Colaboradores
+      </button>
+
+
+      <button
+        class="secondary-button leader-journey-tab"
+        type="button"
+        data-tab="completed"
+      >
+        Concluídos
+      </button>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+
+      <div class="settings-toolbar">
+
+        <input
+          id="leaderJourneySearch"
+          type="search"
+          placeholder="Buscar colaborador..."
+        >
+
+
+        <select
+          id="leaderJourneyOperation"
+        >
+
+          <option value="">
+            Todas as Operações
+          </option>
+
+          ${
+            operations
+              .map(
+                operation => `
+
+                  <option
+                    value="${operation.id}"
+                  >
+                    ${escapeHTML(
+                      operation.name
+                    )}
+                  </option>
+
+                `
+              )
+              .join('')
+          }
+
+        </select>
+
+      </div>
+
+
+      <div id="leaderJourneyList"></div>
+
+    </section>
+
+  `;
+
+
+  document
+    .querySelectorAll(
+      '.leader-journey-tab'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            journeyCurrentTab =
+              button.dataset.tab;
+
+
+            document
+              .querySelectorAll(
+                '.leader-journey-tab'
+              )
+              .forEach(
+                item =>
+                  item.classList
+                    .remove(
+                      'active'
+                    )
+              );
+
+
+            button.classList
+              .add(
+                'active'
+              );
+
+
+            renderLeaderJourneyRows();
+
+          }
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'leaderJourneySearch'
+    )
+    ?.addEventListener(
+      'input',
+      renderLeaderJourneyRows
+    );
+
+
+  document
+    .getElementById(
+      'leaderJourneyOperation'
+    )
+    ?.addEventListener(
+      'change',
+      renderLeaderJourneyRows
+    );
+
+
+  renderLeaderJourneyRows();
+
+}
+
+
+function renderLeaderJourneyRows() {
+
+  const container =
+    document.getElementById(
+      'leaderJourneyList'
+    );
+
+
+  if (!container) {
+    return;
+  }
+
+
+  const search =
+    (
+      document
+        .getElementById(
+          'leaderJourneySearch'
+        )
+        ?.value
+      ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const operationId =
+    document
+      .getElementById(
+        'leaderJourneyOperation'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const identifications =
+    journeyLeaderContext
+      ?.identifications
+    ||
+    [];
+
+
+  const filtered =
+    journeysCache.filter(
+      employment => {
+
+        if (
+          !journeyLeaderContext
+            .operationIds
+            .includes(
+              employment.operation_id
+            )
+        ) {
+
+          return false;
+
+        }
+
+
+        const searchOk =
+          !search
+          ||
+          employment.people
+            ?.full_name
+            ?.toLowerCase()
+            .includes(search);
+
+
+        const operationOk =
+          !operationId
+          ||
+          employment.operation_id ===
+          operationId;
+
+
+        const identification =
+          identifications.find(
+            item =>
+              item.employment_id ===
+              employment.id
+          );
+
+
+        let tabOk =
+          true;
+
+
+        switch (
+          journeyCurrentTab
+        ) {
+
+          case 'identify':
+
+            tabOk =
+              !employment.leader_id
+              &&
+              identification?.decision !==
+                'NOT_MINE'
+              &&
+              leaderCanIdentifyEmployment(
+                employment,
+                journeyLeaderContext
+              );
+
+            break;
+
+
+          case 'mine':
+
+            tabOk =
+              employment.leader_id ===
+              currentProfile.id;
+
+            break;
+
+
+          case 'completed':
+
+            tabOk =
+              employment.status ===
+              'COMPLETED';
+
+            break;
+
+        }
+
+
+        return (
+          searchOk
+          &&
+          operationOk
+          &&
+          tabOk
+        );
+
+      }
+    );
+
+
+  if (
+    filtered.length === 0
+  ) {
+
+    container.innerHTML = `
+
+      <div class="empty-state">
+
+        <strong>
+          Nenhum colaborador nesta visualização
+        </strong>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  container.innerHTML = `
+
+    <div class="table-wrapper">
+
+      <table class="journey-table">
+
+        <thead>
+
+          <tr>
+            <th>Colaborador</th>
+            <th>Operação</th>
+            <th>Período / Escala</th>
+            <th>Responsável</th>
+            <th>Jornada</th>
+            <th>Checkpoint</th>
+            <th>Ação</th>
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            filtered
+              .map(
+                employment => {
+
+                  const journey =
+                    getEmploymentJourney(
+                      employment
+                    );
+
+
+                  const checkpoint =
+                    getCurrentCheckpoint(
+                      journey
+                    );
+
+
+                  const identification =
+                    identifications.find(
+                      item =>
+                        item.employment_id ===
+                        employment.id
+                    );
+
+
+                  const eligible =
+                    leaderCanIdentifyEmployment(
+                      employment,
+                      journeyLeaderContext
+                    );
+
+
+                  let actionHTML = '';
+
+
+                  if (
+                    employment.leader_id ===
+                    currentProfile.id
+                  ) {
+
+                    actionHTML = `
+
+                      <span class="status-pill success">
+                        ✓ Meu colaborador
+                      </span>
+
+                    `;
+
+                  }
+
+                  else if (
+                    employment.leader_id
+                  ) {
+
+                    actionHTML = `
+
+                      <span class="table-subtext">
+                        Já identificado
+                      </span>
+
+                    `;
+
+                  }
+
+                  else if (
+                    !eligible
+                  ) {
+
+                    actionHTML = `
+
+                      <span class="table-subtext">
+                        Outro período
+                      </span>
+
+                    `;
+
+                  }
+
+                  else if (
+                    identification
+                      ?.decision ===
+                    'NOT_MINE'
+                  ) {
+
+                    actionHTML = `
+
+                      <div class="row-actions">
+
+                        <span class="status-pill waiting">
+                          Marcado: não é meu
+                        </span>
+
+                        <button
+                          class="leader-identify-mine"
+                          type="button"
+                          data-id="${employment.id}"
+                        >
+                          Corrigir: é meu
+                        </button>
+
+                      </div>
+
+                    `;
+
+                  }
+
+                  else {
+
+                    actionHTML = `
+
+                      <div class="row-actions">
+
+                        <button
+                          class="leader-identify-mine"
+                          type="button"
+                          data-id="${employment.id}"
+                        >
+                          ✓ É meu
+                        </button>
+
+
+                        <button
+                          class="leader-identify-not-mine"
+                          type="button"
+                          data-id="${employment.id}"
+                        >
+                          ✕ Não é meu
+                        </button>
+
+                      </div>
+
+                    `;
+
+                  }
+
+
+                  return `
+
+                    <tr>
+
+                      <td>
+
+                        <strong>
+                          ${escapeHTML(
+                            employment.people
+                              ?.full_name
+                            ||
+                            ''
+                          )}
+                        </strong>
+
+                        <span class="table-subtext">
+                          Admissão:
+                          ${formatDateBR(
+                            employment.admission_date
+                          )}
+                        </span>
+
+                      </td>
+
+
+                      <td>
+
+                        <strong>
+                          ${escapeHTML(
+                            employment.operations
+                              ?.name
+                            ||
+                            '-'
+                          )}
+                        </strong>
+
+                      </td>
+
+
+                      <td>
+
+                        ${
+                          employment.period
+                            ?.name
+
+                          ? `
+
+                            <strong>
+                              ${escapeHTML(
+                                employment.period.name
+                              )}
+                            </strong>
+
+                            <span class="table-subtext">
+                              ${escapeHTML(
+                                employment.work_schedule
+                                ||
+                                ''
+                              )}
+                            </span>
+
+                          `
+
+                          : escapeHTML(
+                              employment.work_schedule
+                              ||
+                              '-'
+                            )
+                        }
+
+                      </td>
+
+
+                      <td>
+
+                        ${
+                          employment.leader
+                            ?.full_name
+
+                          ? `
+
+                            <span class="status-pill success">
+                              ${escapeHTML(
+                                employment
+                                  .leader
+                                  .full_name
+                              )}
+                            </span>
+
+                          `
+
+                          : `
+
+                            <span class="status-pill warning">
+                              Ainda não identificado
+                            </span>
+
+                          `
+                        }
+
+                      </td>
+
+
+                      <td>
+
+                        ${
+                          employment.status ===
+                          'WAITING'
+
+                          ? `
+
+                            <span class="status-pill waiting">
+                              Ainda não iniciada
+                            </span>
+
+                          `
+
+                          : employment.status ===
+                            'IN_JOURNEY'
+
+                            ? `
+
+                              <span class="status-pill success">
+                                Em andamento
+                              </span>
+
+                            `
+
+                            : `
+
+                              <span class="status-pill success">
+                                Concluída
+                              </span>
+
+                            `
+                        }
+
+                      </td>
+
+
+                      <td>
+
+                        ${
+                          checkpoint
+                            ?.checkpoint
+                          ||
+                          '-'
+                        }
+
+                      </td>
+
+
+                      <td>
+                        ${actionHTML}
+                      </td>
+
+                    </tr>
+
+                  `;
+
+                }
+              )
+              .join('')
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  `;
+
+
+  container
+    .querySelectorAll(
+      '.leader-identify-mine'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            identifyEmployee(
+              button.dataset.id,
+              true
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
+      '.leader-identify-not-mine'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            identifyEmployee(
+              button.dataset.id,
+              false
+            );
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// É MEU / NÃO É MEU
+// ============================================================
+
+async function identifyEmployee(
+  employmentId,
+  isMine
+) {
+
+  const message =
+    isMine
+      ? 'Confirmar que este colaborador é de sua responsabilidade?'
+      : 'Confirmar que este colaborador não pertence à sua equipe?';
+
+
+  if (
+    !confirm(message)
+  ) {
+    return;
+  }
+
+
+  try {
+
+    const {
+      error
+    } =
+      await journeySupabase
+        .rpc(
+          'identify_employee',
+          {
+
+            p_employment_id:
+              employmentId,
+
+            p_is_mine:
+              isMine
+
+          }
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    await loadJourneysPage();
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    alert(
+      error.message
+      ||
+      'Não foi possível registrar a identificação.'
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// JORNADA - COLABORADOR
+// ============================================================
+
+function renderEmployeeJourney() {
+
+  const employment =
+    journeysCache[0];
+
+
+  if (!employment) {
+
+    pageContent.innerHTML = `
+
+      <div class="empty-state large">
+
+        <strong>
+          Nenhuma Jornada encontrada
+        </strong>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  const journey =
+    getEmploymentJourney(
+      employment
+    );
+
+
+  if (!journey) {
+
+    pageContent.innerHTML = `
+
+      <div class="welcome-banner">
+
+        <div>
+
+          <span class="welcome-label">
+            MINHA JORNADA
+          </span>
+
+          <h2>
+            Olá,
+            ${escapeHTML(
+              currentProfile
+                .full_name
+                .split(' ')[0]
+            )}
+          </h2>
+
+          <p>
+            Seu cadastro já está no Shopee Journey.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="empty-state large">
+
+        <strong>
+          Jornada aguardando início
+        </strong>
+
+        <p>
+          Assim que sua Jornada for iniciada,
+          seus checkpoints aparecerão aqui.
+        </p>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  const checkpoints =
+    (
+      journey.journey_checkpoints
+      ||
+      []
+    )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          new Date(a.opens_at)
+          -
+          new Date(b.opens_at)
+      );
+
+
+  const now =
+    new Date();
+
+
+  pageContent.innerHTML = `
+
+    <div class="welcome-banner">
+
+      <div>
+
+        <span class="welcome-label">
+          MINHA JORNADA
+        </span>
+
+        <h2>
+          Sua Jornada está em andamento 🧡
+        </h2>
+
+        <p>
+          Acompanhe cada etapa do seu
+          desenvolvimento até o D90.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+      <div class="panel-header">
+
+        <div>
+
+          <h3>
+            Linha do tempo
+          </h3>
+
+          <p>
+            Seus checkpoints são liberados
+            conforme a Jornada avança.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="journey-checkpoint-list">
+
+        ${
+          checkpoints
+            .map(
+              checkpoint => {
+
+                const opensAt =
+                  new Date(
+                    checkpoint.opens_at
+                  );
+
+
+                const dueAt =
+                  new Date(
+                    checkpoint.due_at
+                  );
+
+
+                let status =
+                  'Futuro';
+
+
+                if (
+                  now >= opensAt
+                  &&
+                  now <= dueAt
+                ) {
+
+                  status =
+                    'Disponível';
+
+                }
+
+                else if (
+                  now > dueAt
+                ) {
+
+                  status =
+                    'Prazo encerrado';
+
+                }
+
+
+                return `
+
+                  <div class="compact-settings-row">
+
+                    <div>
+
+                      <strong>
+                        ${escapeHTML(
+                          checkpoint.checkpoint
+                        )}
+                      </strong>
+
+                      <span>
+                        Disponível em
+                        ${formatDateTimeBR(
+                          checkpoint.opens_at
+                        )}
+                      </span>
+
+                    </div>
+
+
+                    <span
+                      class="status-pill ${
+                        status ===
+                        'Disponível'
+                          ? 'success'
+                          : 'waiting'
+                      }"
+                    >
+                      ${status}
+                    </span>
+
+                  </div>
+
+                `;
+
+              }
+            )
+            .join('')
+        }
+
+      </div>
+
+    </section>
+
+  `;
+
+}
+
+
+// ============================================================
+// HELPERS JORNADAS
+// ============================================================
+
+function getEmploymentJourney(
+  employment
+) {
+
+  const journeys =
+    employment.journeys
+    ||
+    [];
+
+
+  if (!journeys.length) {
+    return null;
+  }
+
+
+  return (
+    journeys.find(
+      journey =>
+        journey.status ===
+        'ACTIVE'
+    )
+    ||
+    journeys[0]
+  );
+
+}
+
+
+function getCurrentCheckpoint(
+  journey
+) {
+
+  if (!journey) {
+    return null;
+  }
+
+
+  const checkpoints =
+    journey
+      .journey_checkpoints
+    ||
+    [];
+
+
+  if (!checkpoints.length) {
+    return null;
+  }
+
+
+  const now =
+    new Date();
+
+
+  const available =
+    checkpoints
+      .filter(
+        checkpoint =>
+          new Date(
+            checkpoint.opens_at
+          ) <=
+          now
+      )
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          new Date(
+            b.opens_at
+          )
+          -
+          new Date(
+            a.opens_at
+          )
+      );
+
+
+  if (
+    available.length
+  ) {
+
+    return available[0];
+
+  }
+
+
+  return checkpoints
+    .slice()
+    .sort(
+      (
+        a,
+        b
+      ) =>
+        new Date(a.opens_at)
+        -
+        new Date(b.opens_at)
+    )[0];
+
+}
+
+
+function getUniqueRegionals(
+  rows
+) {
+
+  const map =
+    new Map();
+
+
+  rows.forEach(
+    item => {
+
+      const regional =
+        item.operations
+          ?.regionals;
+
+
+      if (regional?.id) {
+
+        map.set(
+          regional.id,
+          regional
+        );
+
+      }
+
+    }
+  );
+
+
+  return [
+    ...map.values()
+  ];
+
+}
+
+
+function getUniqueOperations(
+  rows
+) {
+
+  const map =
+    new Map();
+
+
+  rows.forEach(
+    item => {
+
+      const operation =
+        item.operations;
+
+
+      if (operation?.id) {
+
+        map.set(
+          operation.id,
+          operation
+        );
+
+      }
+
+    }
+  );
+
+
+  return [
+    ...map.values()
+  ];
+
+}
+
+
+// ============================================================
+// ============================================================
+// CONFIGURAÇÕES
+// ============================================================
 // ============================================================
 
 async function loadSettingsHome() {
@@ -3950,7 +6628,6 @@ async function loadSettingsHome() {
 
         </button>
 
-
       </div>
 
     `;
@@ -3975,37 +6652,31 @@ async function loadSettingsHome() {
           }
 
 
-          const action =
-            card.dataset.settingsAction;
-
-
-          switch (action) {
+          switch (
+            card.dataset.settingsAction
+          ) {
 
             case 'regionals':
 
               await loadRegionalsManager();
-
               break;
 
 
             case 'operations':
 
               await loadOperationsManager();
-
               break;
 
 
             case 'corporate-users':
 
               await loadCorporateUsersManager();
-
               break;
 
 
             case 'checkpoints':
 
               openCheckpointSettings();
-
               break;
 
           }
@@ -4018,7 +6689,7 @@ async function loadSettingsHome() {
   catch (error) {
 
     console.error(
-      'Erro ao carregar Configurações:',
+      'Erro Configurações:',
       error
     );
 
@@ -4027,12 +6698,10 @@ async function loadSettingsHome() {
 
       <div class="system-error">
 
-        <h2>
-          Erro ao carregar Configurações
-        </h2>
-
         <p>
-          ${escapeHTML(error.message)}
+          ${escapeHTML(
+            error.message
+          )}
         </p>
 
       </div>
@@ -4045,7 +6714,7 @@ async function loadSettingsHome() {
 
 
 // ============================================================
-// CONFIGURAÇÕES - REGIONAIS
+// REGIONAIS
 // ============================================================
 
 async function loadRegionalsManager() {
@@ -4061,9 +6730,7 @@ async function loadRegionalsManager() {
         name,
         active
       `)
-      .order(
-        'name'
-      );
+      .order('name');
 
 
   if (error) {
@@ -4271,7 +6938,8 @@ function renderRegionalsManager() {
   const pageRows =
     filtered.slice(
       start,
-      start + SETTINGS_PAGE_SIZE
+      start +
+      SETTINGS_PAGE_SIZE
     );
 
 
@@ -4668,7 +7336,7 @@ async function deleteRegional(
 
 
 // ============================================================
-// CONFIGURAÇÕES - OPERAÇÕES
+// OPERAÇÕES
 // ============================================================
 
 async function loadOperationsManager() {
@@ -4686,10 +7354,17 @@ async function loadOperationsManager() {
           name,
           active,
           regional_id,
+          use_period_filter,
 
           regionals (
             id,
             name
+          ),
+
+          operation_periods (
+            id,
+            name,
+            active
           )
         `)
         .order('name'),
@@ -4759,8 +7434,8 @@ async function loadOperationsManager() {
         </h2>
 
         <p>
-          Organize as operações dentro
-          de suas Regionais.
+          Regional é obrigatória.
+          Período é um filtro opcional.
         </p>
 
       </div>
@@ -4829,7 +7504,6 @@ async function loadOperationsManager() {
 
 
       <div class="settings-toolbar">
-
 
         <input
           id="operationSearch"
@@ -5034,7 +7708,8 @@ function renderOperationsManager() {
   const pageRows =
     filtered.slice(
       start,
-      start + SETTINGS_PAGE_SIZE
+      start +
+      SETTINGS_PAGE_SIZE
     );
 
 
@@ -5049,6 +7724,7 @@ function renderOperationsManager() {
           <tr>
             <th>Regional</th>
             <th>Operação</th>
+            <th>Filtro por período</th>
             <th>Status</th>
             <th>Ações</th>
           </tr>
@@ -5070,7 +7746,8 @@ function renderOperationsManager() {
                       <td>
 
                         ${
-                          operation.regionals?.name
+                          operation.regionals
+                            ?.name
 
                           ? escapeHTML(
                               operation.regionals.name
@@ -5095,6 +7772,55 @@ function renderOperationsManager() {
                             operation.name
                           )}
                         </strong>
+
+                      </td>
+
+
+                      <td>
+
+                        ${
+                          operation.use_period_filter
+
+                          ? `
+
+                            <span class="status-pill success">
+                              Ativo
+                            </span>
+
+                            <span class="table-subtext">
+
+                              ${
+                                (
+                                  operation
+                                    .operation_periods
+                                  ||
+                                  []
+                                )
+                                  .filter(
+                                    period =>
+                                      period.active
+                                  )
+                                  .map(
+                                    period =>
+                                      period.name
+                                  )
+                                  .join(', ')
+                                ||
+                                'Sem períodos cadastrados'
+                              }
+
+                            </span>
+
+                          `
+
+                          : `
+
+                            <span class="status-pill waiting">
+                              Não utilizado
+                            </span>
+
+                          `
+                        }
 
                       </td>
 
@@ -5169,9 +7895,11 @@ function renderOperationsManager() {
             : `
 
                 <tr>
-                  <td colspan="4">
+
+                  <td colspan="5">
                     Nenhuma operação encontrada.
                   </td>
+
                 </tr>
 
               `
@@ -5324,7 +8052,10 @@ async function createOperationWithRegional(
           regionalId,
 
         active:
-          true
+          true,
+
+        use_period_filter:
+          false
 
       });
 
@@ -5361,13 +8092,38 @@ function openOperationEditModal(id) {
   }
 
 
+  const periods =
+    (
+      operation.operation_periods
+      ||
+      []
+    )
+      .filter(
+        period =>
+          period.active
+      )
+      .map(
+        period =>
+          period.name
+      )
+      .join(', ');
+
+
   openGenericModal(`
 
     <div class="modal-header">
 
       <div>
-        <h2>Editar Operação</h2>
-        <p>Atualize a Regional e o código do HUB.</p>
+
+        <h2>
+          Editar Operação
+        </h2>
+
+        <p>
+          Regional e filtro opcional
+          de período.
+        </p>
+
       </div>
 
       <button
@@ -5383,8 +8139,9 @@ function openOperationEditModal(id) {
 
     <form
       id="editOperationForm"
-      style="padding: 24px;"
+      style="padding:24px;"
     >
+
 
       <div class="form-group">
 
@@ -5444,6 +8201,64 @@ function openOperationEditModal(id) {
       </div>
 
 
+      <div class="form-group">
+
+        <label class="operation-checkbox">
+
+          <input
+            id="editUsePeriodFilter"
+            type="checkbox"
+            ${
+              operation.use_period_filter
+                ? 'checked'
+                : ''
+            }
+          >
+
+          <span>
+            Utilizar período/turno para direcionar
+            a identificação da liderança
+          </span>
+
+        </label>
+
+        <span class="form-help">
+          Se desmarcado, todos os líderes da operação
+          poderão identificar colaboradores.
+        </span>
+
+      </div>
+
+
+      <div
+        id="editOperationPeriodsField"
+        class="form-group ${
+          operation.use_period_filter
+            ? ''
+            : 'hidden'
+        }"
+      >
+
+        <label>
+          Períodos da operação
+        </label>
+
+        <input
+          id="editOperationPeriods"
+          type="text"
+          value="${escapeHTML(
+            periods
+          )}"
+          placeholder="Ex.: Madrugada, Manhã"
+        >
+
+        <span class="form-help">
+          Separe os períodos por vírgula.
+        </span>
+
+      </div>
+
+
       <button
         class="primary-action-button full-button"
         type="submit"
@@ -5454,6 +8269,28 @@ function openOperationEditModal(id) {
     </form>
 
   `);
+
+
+  document
+    .getElementById(
+      'editUsePeriodFilter'
+    )
+    ?.addEventListener(
+      'change',
+      event => {
+
+        document
+          .getElementById(
+            'editOperationPeriodsField'
+          )
+          ?.classList
+          .toggle(
+            'hidden',
+            !event.target.checked
+          );
+
+      }
+    );
 
 
   document
@@ -5485,39 +8322,192 @@ function openOperationEditModal(id) {
             .toUpperCase();
 
 
-        const {
-          error
-        } =
-          await journeySupabase
-            .from('operations')
-            .update({
-
-              name,
-
-              regional_id:
-                regionalId
-
-            })
-            .eq(
-              'id',
-              id
-            );
+        const usePeriodFilter =
+          document
+            .getElementById(
+              'editUsePeriodFilter'
+            )
+            .checked;
 
 
-        if (error) {
+        const periodNames =
+          document
+            .getElementById(
+              'editOperationPeriods'
+            )
+            ?.value
+            ?.split(',')
+            .map(
+              item =>
+                item.trim()
+            )
+            .filter(Boolean)
+          ||
+          [];
+
+
+        try {
+
+          const {
+            error: operationError
+          } =
+            await journeySupabase
+              .from('operations')
+              .update({
+
+                name,
+
+                regional_id:
+                  regionalId,
+
+                use_period_filter:
+                  usePeriodFilter
+
+              })
+              .eq(
+                'id',
+                id
+              );
+
+
+          if (operationError) {
+            throw operationError;
+          }
+
+
+          if (
+            usePeriodFilter
+          ) {
+
+            if (
+              periodNames.length === 0
+            ) {
+
+              throw new Error(
+                'Informe pelo menos um período para esta operação.'
+              );
+
+            }
+
+
+            const existing =
+              operation
+                .operation_periods
+              ||
+              [];
+
+
+            for (
+              const periodName
+              of periodNames
+            ) {
+
+              const found =
+                existing.find(
+                  item =>
+                    item.name
+                      .toLowerCase() ===
+                    periodName
+                      .toLowerCase()
+                );
+
+
+              if (found) {
+
+                await journeySupabase
+                  .from(
+                    'operation_periods'
+                  )
+                  .update({
+                    active: true
+                  })
+                  .eq(
+                    'id',
+                    found.id
+                  );
+
+              }
+
+              else {
+
+                const {
+                  error
+                } =
+                  await journeySupabase
+                    .from(
+                      'operation_periods'
+                    )
+                    .insert({
+
+                      operation_id:
+                        id,
+
+                      name:
+                        periodName
+
+                    });
+
+
+                if (error) {
+                  throw error;
+                }
+
+              }
+
+            }
+
+
+            for (
+              const oldPeriod
+              of existing
+            ) {
+
+              const remains =
+                periodNames.some(
+                  name =>
+                    name
+                      .toLowerCase() ===
+                    oldPeriod.name
+                      .toLowerCase()
+                );
+
+
+              if (!remains) {
+
+                await journeySupabase
+                  .from(
+                    'operation_periods'
+                  )
+                  .update({
+                    active: false
+                  })
+                  .eq(
+                    'id',
+                    oldPeriod.id
+                  );
+
+              }
+
+            }
+
+          }
+
+
+          closeGenericModal();
+
+          await loadOperationsManager();
+
+        }
+
+        catch (error) {
+
+          console.error(error);
 
           alert(
             error.message
           );
 
-          return;
-
         }
-
-
-        closeGenericModal();
-
-        await loadOperationsManager();
 
       }
     );
@@ -5603,7 +8593,7 @@ async function deleteOperationRecord(
 
 
 // ============================================================
-// CONFIGURAÇÕES - ACESSOS CORPORATIVOS
+// ACESSOS CORPORATIVOS
 // ============================================================
 
 async function loadCorporateUsersManager() {
@@ -5680,18 +8670,22 @@ async function loadCorporateUsersManager() {
         <select
           id="corporateRegionalFilter"
         >
+
           <option value="">
             Todas as Regionais
           </option>
+
         </select>
 
 
         <select
           id="corporateOperationFilter"
         >
+
           <option value="">
             Todas as Operações
           </option>
+
         </select>
 
       </div>
@@ -5809,7 +8803,8 @@ async function fetchCorporateUsersManager() {
 
   const [
     usersResult,
-    operationsResult
+    operationsResult,
+    periodsResult
   ] =
     await Promise.all([
 
@@ -5844,9 +8839,7 @@ async function fetchCorporateUsersManager() {
             'HR_MANAGER'
           ]
         )
-        .order(
-          'full_name'
-        ),
+        .order('full_name'),
 
 
       journeySupabase
@@ -5856,16 +8849,31 @@ async function fetchCorporateUsersManager() {
           name,
           active,
           regional_id,
+          use_period_filter,
 
           regionals (
+            id,
+            name
+          ),
+
+          operation_periods (
             id,
             name,
             active
           )
         `)
-        .order(
-          'name'
+        .order('name'),
+
+
+      journeySupabase
+        .from(
+          'leader_operation_periods'
         )
+        .select(`
+          leader_id,
+          operation_id,
+          period_id
+        `)
 
     ]);
 
@@ -5876,15 +8884,11 @@ async function fetchCorporateUsersManager() {
     operationsResult.error
   ) {
 
-    const container =
-      document.getElementById(
+    document
+      .getElementById(
         'corporateUsersManagerList'
-      );
-
-
-    if (container) {
-
-      container.innerHTML = `
+      )
+      .innerHTML = `
 
         <div class="system-error">
 
@@ -5900,8 +8904,6 @@ async function fetchCorporateUsersManager() {
 
       `;
 
-    }
-
     return;
 
   }
@@ -5915,6 +8917,12 @@ async function fetchCorporateUsersManager() {
 
   corporateOperationsCache =
     operationsResult.data
+    ||
+    [];
+
+
+  corporateLeaderPeriodLinks =
+    periodsResult.data
     ||
     [];
 
@@ -5956,14 +8964,16 @@ function populateCorporateRegionalFilter() {
           .map(
             operation => [
 
-              operation.regionals.id,
+              operation
+                .regionals.id,
 
-              operation.regionals
+              operation
+                .regionals
 
             ]
           )
       )
-      .values()
+        .values()
     ];
 
 
@@ -5978,7 +8988,9 @@ function populateCorporateRegionalFilter() {
         .map(
           regional => `
 
-            <option value="${regional.id}">
+            <option
+              value="${regional.id}"
+            >
               ${escapeHTML(
                 regional.name
               )}
@@ -6045,7 +9057,9 @@ function updateCorporateOperationFilter() {
         .map(
           operation => `
 
-            <option value="${operation.id}">
+            <option
+              value="${operation.id}"
+            >
               ${escapeHTML(
                 operation.name
               )}
@@ -6240,7 +9254,8 @@ function renderCorporateUsersManager() {
   const pageRows =
     filtered.slice(
       start,
-      start + SETTINGS_PAGE_SIZE
+      start +
+      SETTINGS_PAGE_SIZE
     );
 
 
@@ -6353,9 +9368,11 @@ function renderCorporateUsersManager() {
 
                             : (
                                 regionals.length
+
                                   ? escapeHTML(
                                       regionals.join(', ')
                                     )
+
                                   : '-'
                               )
                           }
@@ -6373,9 +9390,11 @@ function renderCorporateUsersManager() {
 
                             : (
                                 operations.length
+
                                   ? escapeHTML(
                                       operations.join(', ')
                                     )
+
                                   : '-'
                               )
                           }
@@ -6532,7 +9551,7 @@ function renderCorporateUsersManager() {
 
 
 // ============================================================
-// NOVO ACESSO CORPORATIVO
+// NOVO ACESSO
 // ============================================================
 
 function openCorporateUserCreateModal() {
@@ -6574,7 +9593,7 @@ function openCorporateUserCreateModal() {
 
     <form
       id="newCorporateUserForm"
-      style="padding: 24px;"
+      style="padding:24px;"
     >
 
 
@@ -6662,41 +9681,112 @@ function openCorporateUserCreateModal() {
           Operações da liderança
         </label>
 
-        <div class="operations-checkbox-list">
+        <div
+          id="newCorporateOperationList"
+          class="operations-checkbox-list"
+        >
 
           ${
             activeOperations
               .map(
                 operation => `
 
-                  <label class="operation-checkbox">
+                  <div
+                    class="leader-operation-option"
+                    style="margin-bottom:10px;"
+                  >
 
-                    <input
-                      type="checkbox"
-                      name="newCorporateOperation"
-                      value="${operation.id}"
-                    >
+                    <label class="operation-checkbox">
 
-                    <span>
+                      <input
+                        type="checkbox"
+                        name="newCorporateOperation"
+                        value="${operation.id}"
+                      >
 
-                      ${
-                        escapeHTML(
+                      <span>
+
+                        ${escapeHTML(
                           operation.regionals
                             ?.name
                           ||
                           'Sem Regional'
-                        )
-                      }
-                      ·
-                      ${
-                        escapeHTML(
+                        )}
+                        ·
+                        ${escapeHTML(
                           operation.name
-                        )
-                      }
+                        )}
 
-                    </span>
+                      </span>
 
-                  </label>
+                    </label>
+
+
+                    ${
+                      operation.use_period_filter
+
+                      ? `
+
+                        <div
+                          style="
+                            padding-left:25px;
+                            margin-top:6px;
+                          "
+                        >
+
+                          <span class="form-help">
+                            Período(s):
+                          </span>
+
+                          ${
+                            (
+                              operation
+                                .operation_periods
+                              ||
+                              []
+                            )
+                              .filter(
+                                period =>
+                                  period.active
+                              )
+                              .map(
+                                period => `
+
+                                  <label
+                                    class="operation-checkbox"
+                                    style="
+                                      margin-top:4px;
+                                    "
+                                  >
+
+                                    <input
+                                      type="checkbox"
+                                      name="newCorporatePeriod"
+                                      data-operation-id="${operation.id}"
+                                      value="${period.id}"
+                                    >
+
+                                    <span>
+                                      ${escapeHTML(
+                                        period.name
+                                      )}
+                                    </span>
+
+                                  </label>
+
+                                `
+                              )
+                              .join('')
+                          }
+
+                        </div>
+
+                      `
+
+                      : ''
+                    }
+
+                  </div>
 
                 `
               )
@@ -6810,6 +9900,31 @@ async function createCorporateUserFromModal(
       );
 
 
+  const periodLinks =
+    Array.from(
+      document.querySelectorAll(
+        'input[name="newCorporatePeriod"]:checked'
+      )
+    )
+      .map(
+        item => ({
+
+          operationId:
+            item.dataset.operationId,
+
+          periodId:
+            item.value
+
+        })
+      )
+      .filter(
+        link =>
+          operationIds.includes(
+            link.operationId
+          )
+      );
+
+
   if (
     !email.endsWith(
       '@shopee.com'
@@ -6836,6 +9951,53 @@ async function createCorporateUserFromModal(
     );
 
     return;
+
+  }
+
+
+  if (
+    role === 'LEADER'
+  ) {
+
+    for (
+      const operationId
+      of operationIds
+    ) {
+
+      const operation =
+        corporateOperationsCache.find(
+          item =>
+            item.id ===
+            operationId
+        );
+
+
+      if (
+        operation
+          ?.use_period_filter
+      ) {
+
+        const hasPeriod =
+          periodLinks.some(
+            link =>
+              link.operationId ===
+              operationId
+          );
+
+
+        if (!hasPeriod) {
+
+          alert(
+            `Selecione pelo menos um período para ${operation.name}.`
+          );
+
+          return;
+
+        }
+
+      }
+
+    }
 
   }
 
@@ -6871,7 +10033,8 @@ async function createCorporateUserFromModal(
               email,
               password,
               role,
-              operationIds
+              operationIds,
+              periodLinks
 
             }
           }
@@ -6943,7 +10106,7 @@ async function createCorporateUserFromModal(
 
 
 // ============================================================
-// EDITAR ACESSO CORPORATIVO
+// EDITAR ACESSO
 // ============================================================
 
 function openCorporateUserEditModal(
@@ -6972,6 +10135,21 @@ function openCorporateUserEditModal(
         .map(
           link =>
             link.operation_id
+        )
+    );
+
+
+  const selectedPeriods =
+    new Set(
+      corporateLeaderPeriodLinks
+        .filter(
+          link =>
+            link.leader_id ===
+            id
+        )
+        .map(
+          link =>
+            `${link.operation_id}:${link.period_id}`
         )
     );
 
@@ -7057,8 +10235,9 @@ function openCorporateUserEditModal(
           <div class="form-group">
 
             <label>
-              Operações
+              Operações e períodos
             </label>
+
 
             <div class="operations-checkbox-list">
 
@@ -7074,36 +10253,119 @@ function openCorporateUserEditModal(
                   .map(
                     operation => `
 
-                      <label class="operation-checkbox">
+                      <div
+                        style="
+                          margin-bottom:10px;
+                        "
+                      >
 
-                        <input
-                          type="checkbox"
-                          name="editCorporateOperation"
-                          value="${operation.id}"
-                          ${
-                            selectedOperations
-                              .has(operation.id)
-                              ? 'checked'
-                              : ''
-                          }
-                        >
+                        <label class="operation-checkbox">
 
-                        <span>
+                          <input
+                            type="checkbox"
+                            name="editCorporateOperation"
+                            value="${operation.id}"
+                            ${
+                              selectedOperations
+                                .has(operation.id)
+                                ? 'checked'
+                                : ''
+                            }
+                          >
 
-                          ${escapeHTML(
-                            operation.regionals
-                              ?.name
-                            ||
-                            'Sem Regional'
-                          )}
-                          ·
-                          ${escapeHTML(
-                            operation.name
-                          )}
+                          <span>
 
-                        </span>
+                            ${escapeHTML(
+                              operation.regionals
+                                ?.name
+                              ||
+                              'Sem Regional'
+                            )}
+                            ·
+                            ${escapeHTML(
+                              operation.name
+                            )}
 
-                      </label>
+                          </span>
+
+                        </label>
+
+
+                        ${
+                          operation.use_period_filter
+
+                          ? `
+
+                            <div
+                              style="
+                                padding-left:25px;
+                                margin-top:5px;
+                              "
+                            >
+
+                              ${
+                                (
+                                  operation
+                                    .operation_periods
+                                  ||
+                                  []
+                                )
+                                  .filter(
+                                    period =>
+                                      period.active
+                                  )
+                                  .map(
+                                    period => {
+
+                                      const key =
+                                        `${operation.id}:${period.id}`;
+
+
+                                      return `
+
+                                        <label
+                                          class="operation-checkbox"
+                                          style="
+                                            margin-top:4px;
+                                          "
+                                        >
+
+                                          <input
+                                            type="checkbox"
+                                            name="editCorporatePeriod"
+                                            data-operation-id="${operation.id}"
+                                            value="${period.id}"
+                                            ${
+                                              selectedPeriods
+                                                .has(key)
+                                                ? 'checked'
+                                                : ''
+                                            }
+                                          >
+
+                                          <span>
+                                            ${escapeHTML(
+                                              period.name
+                                            )}
+                                          </span>
+
+                                        </label>
+
+                                      `;
+
+                                    }
+                                  )
+                                  .join('')
+                              }
+
+                            </div>
+
+                          `
+
+                          : ''
+                        }
+
+                      </div>
 
                     `
                   )
@@ -7160,7 +10422,8 @@ function openCorporateUserEditModal(
             await journeySupabase
               .from('profiles')
               .update({
-                full_name: name
+                full_name:
+                  name
               })
               .eq(
                 'id',
@@ -7192,17 +10455,99 @@ function openCorporateUserEditModal(
 
             if (!operationIds.length) {
 
-              alert(
+              throw new Error(
                 'O líder precisa possuir pelo menos uma operação.'
               );
 
-              return;
+            }
+
+
+            const periodLinks =
+              Array.from(
+                document.querySelectorAll(
+                  'input[name="editCorporatePeriod"]:checked'
+                )
+              )
+                .map(
+                  item => ({
+
+                    operation_id:
+                      item.dataset.operationId,
+
+                    period_id:
+                      item.value
+
+                  })
+                )
+                .filter(
+                  link =>
+                    operationIds.includes(
+                      link.operation_id
+                    )
+                );
+
+
+            for (
+              const operationId
+              of operationIds
+            ) {
+
+              const operation =
+                corporateOperationsCache
+                  .find(
+                    item =>
+                      item.id ===
+                      operationId
+                  );
+
+
+              if (
+                operation
+                  ?.use_period_filter
+              ) {
+
+                const hasPeriod =
+                  periodLinks.some(
+                    link =>
+                      link.operation_id ===
+                      operationId
+                  );
+
+
+                if (!hasPeriod) {
+
+                  throw new Error(
+                    `Selecione pelo menos um período para ${operation.name}.`
+                  );
+
+                }
+
+              }
 
             }
 
 
             const {
-              error: deleteError
+              error: deletePeriodsError
+            } =
+              await journeySupabase
+                .from(
+                  'leader_operation_periods'
+                )
+                .delete()
+                .eq(
+                  'leader_id',
+                  id
+                );
+
+
+            if (deletePeriodsError) {
+              throw deletePeriodsError;
+            }
+
+
+            const {
+              error: deleteOperationsError
             } =
               await journeySupabase
                 .from(
@@ -7215,13 +10560,15 @@ function openCorporateUserEditModal(
                 );
 
 
-            if (deleteError) {
-              throw deleteError;
+            if (
+              deleteOperationsError
+            ) {
+              throw deleteOperationsError;
             }
 
 
             const {
-              error: insertError
+              error: insertOperationsError
             } =
               await journeySupabase
                 .from(
@@ -7242,15 +10589,54 @@ function openCorporateUserEditModal(
                 );
 
 
-            if (insertError) {
-              throw insertError;
+            if (
+              insertOperationsError
+            ) {
+              throw insertOperationsError;
+            }
+
+
+            if (
+              periodLinks.length
+            ) {
+
+              const {
+                error: insertPeriodsError
+              } =
+                await journeySupabase
+                  .from(
+                    'leader_operation_periods'
+                  )
+                  .insert(
+                    periodLinks.map(
+                      link => ({
+
+                        leader_id:
+                          id,
+
+                        operation_id:
+                          link.operation_id,
+
+                        period_id:
+                          link.period_id
+
+                      })
+                    )
+                  );
+
+
+              if (
+                insertPeriodsError
+              ) {
+                throw insertPeriodsError;
+              }
+
             }
 
           }
 
 
           closeGenericModal();
-
 
           await fetchCorporateUsersManager();
 
@@ -7314,7 +10700,7 @@ async function toggleCorporateUserStatus(
 function openCheckpointSettings() {
 
   alert(
-    'Configuração dos checkpoints será a próxima etapa.'
+    'Configuração das perguntas e checkpoints será implementada na etapa de Avaliações.'
   );
 
 }
@@ -7466,7 +10852,8 @@ function renderPaginationHTML(
           )
         }"
         ${
-          currentPage === totalPages
+          currentPage ===
+          totalPages
             ? 'disabled'
             : ''
         }
@@ -7699,6 +11086,34 @@ function formatDateBR(value) {
     +
     parts[0]
   );
+
+}
+
+
+function formatDateTimeBR(value) {
+
+  if (!value) {
+    return '-';
+  }
+
+
+  const date =
+    new Date(value);
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value;
+  }
+
+
+  return date
+    .toLocaleDateString(
+      'pt-BR'
+    );
 
 }
 
