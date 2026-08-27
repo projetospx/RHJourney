@@ -1232,7 +1232,7 @@ async function openPage(page) {
   pageSubtitle.textContent =
     'Estrutura e acessos do Shopee Journey.';
 
-  await loadSettingsPage();
+  await loadSettingsHome();
 
   break;
 
@@ -4849,6 +4849,1321 @@ async function loadCorporateUsers() {
       }
     )
     .join('');
+
+}
+
+// ============================================================
+// HOME DE CONFIGURAÇÕES
+// ============================================================
+
+async function loadSettingsHome() {
+
+  if (
+    currentProfile.role !==
+    'ADMIN_RH'
+  ) {
+
+    await loadDashboard();
+    return;
+
+  }
+
+
+  const [
+    regionalsResult,
+    operationsResult,
+    usersResult,
+    checkpointsResult
+  ] =
+    await Promise.all([
+
+      journeySupabase
+        .from('regionals')
+        .select(
+          'id',
+          {
+            count: 'exact',
+            head: true
+          }
+        ),
+
+
+      journeySupabase
+        .from('operations')
+        .select(
+          'id',
+          {
+            count: 'exact',
+            head: true
+          }
+        ),
+
+
+      journeySupabase
+        .from('profiles')
+        .select(
+          'id',
+          {
+            count: 'exact',
+            head: true
+          }
+        )
+        .in(
+          'role',
+          [
+            'LEADER',
+            'HR_MANAGER'
+          ]
+        ),
+
+
+      journeySupabase
+        .from('checkpoint_rules')
+        .select(
+          'checkpoint',
+          {
+            count: 'exact',
+            head: true
+          }
+        )
+
+    ]);
+
+
+  pageContent.innerHTML = `
+
+    <div class="module-header">
+
+      <div>
+
+        <h2>
+          Configurações
+        </h2>
+
+        <p>
+          Gerencie a estrutura e os acessos
+          do Shopee Journey.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="settings-home-grid">
+
+
+      <button
+        class="settings-home-card"
+        onclick="loadRegionalsManager()"
+      >
+
+        <div class="settings-home-icon">
+          🌎
+        </div>
+
+        <div>
+
+          <strong>
+            Regionais
+          </strong>
+
+          <span>
+            ${regionalsResult.count || 0}
+            cadastradas
+          </span>
+
+        </div>
+
+        <b>
+          Gerenciar →
+        </b>
+
+      </button>
+
+
+      <button
+        class="settings-home-card"
+        onclick="loadOperationsManager()"
+      >
+
+        <div class="settings-home-icon">
+          📍
+        </div>
+
+        <div>
+
+          <strong>
+            Operações / HUBs
+          </strong>
+
+          <span>
+            ${operationsResult.count || 0}
+            cadastradas
+          </span>
+
+        </div>
+
+        <b>
+          Gerenciar →
+        </b>
+
+      </button>
+
+
+      <button
+        class="settings-home-card"
+        onclick="loadCorporateUsersManager()"
+      >
+
+        <div class="settings-home-icon">
+          👥
+        </div>
+
+        <div>
+
+          <strong>
+            Acessos Corporativos
+          </strong>
+
+          <span>
+            ${usersResult.count || 0}
+            cadastrados
+          </span>
+
+        </div>
+
+        <b>
+          Gerenciar →
+        </b>
+
+      </button>
+
+
+      <button
+        class="settings-home-card"
+        onclick="openCheckpointSettings()"
+      >
+
+        <div class="settings-home-icon">
+          ⚙️
+        </div>
+
+        <div>
+
+          <strong>
+            Checkpoints
+          </strong>
+
+          <span>
+            ${checkpointsResult.count || 0}
+            configurados
+          </span>
+
+        </div>
+
+        <b>
+          Gerenciar →
+        </b>
+
+      </button>
+
+
+    </div>
+
+  `;
+
+}
+
+async function loadRegionalsManager() {
+
+  const {
+    data,
+    error
+  } =
+    await journeySupabase
+      .from('regionals')
+      .select(`
+        id,
+        name,
+        active
+      `)
+      .order('name');
+
+
+  if (error) {
+
+    alert(error.message);
+    return;
+
+  }
+
+
+  pageContent.innerHTML = `
+
+    <div class="settings-manager-header">
+
+      <button
+        class="back-button"
+        onclick="loadSettingsHome()"
+      >
+        ← Voltar
+      </button>
+
+
+      <div>
+
+        <h2>
+          Regionais
+        </h2>
+
+        <p>
+          Organize as operações por Regional.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+
+      <form
+        id="regionalCreateForm"
+        class="compact-create-form"
+      >
+
+        <input
+          id="newRegionalName"
+          type="text"
+          placeholder="Ex.: REGIONAL NORTE"
+          required
+        >
+
+        <button
+          class="primary-action-button"
+          type="submit"
+        >
+          + Nova Regional
+        </button>
+
+      </form>
+
+
+      <div class="settings-toolbar">
+
+        <input
+          id="regionalSearch"
+          type="search"
+          placeholder="Buscar Regional..."
+          oninput="filterRegionalRows()"
+        >
+
+      </div>
+
+
+      <div
+        id="regionalRows"
+        class="compact-settings-list"
+      >
+
+        ${
+          data.length
+
+          ? data.map(
+              regional => `
+
+                <div
+                  class="compact-settings-row regional-row"
+                  data-search="${escapeHTML(
+                    regional.name.toLowerCase()
+                  )}"
+                >
+
+                  <div>
+
+                    <strong>
+                      ${escapeHTML(
+                        regional.name
+                      )}
+                    </strong>
+
+                    <span>
+                      ${
+                        regional.active
+                          ? 'Ativa'
+                          : 'Inativa'
+                      }
+                    </span>
+
+                  </div>
+
+
+                  <div class="row-actions">
+
+                    <button
+                      onclick="
+                        editRegional(
+                          '${regional.id}',
+                          '${escapeJS(
+                            regional.name
+                          )}'
+                        )
+                      "
+                    >
+                      Editar
+                    </button>
+
+
+                    <button
+                      onclick="
+                        toggleRegional(
+                          '${regional.id}',
+                          ${!regional.active}
+                        )
+                      "
+                    >
+                      ${
+                        regional.active
+                          ? 'Inativar'
+                          : 'Ativar'
+                      }
+                    </button>
+
+
+                    <button
+                      class="danger-action"
+                      onclick="
+                        deleteRegional(
+                          '${regional.id}',
+                          '${escapeJS(
+                            regional.name
+                          )}'
+                        )
+                      "
+                    >
+                      Excluir
+                    </button>
+
+                  </div>
+
+                </div>
+
+              `
+            ).join('')
+
+          : `
+
+              <div class="empty-state">
+
+                <strong>
+                  Nenhuma Regional cadastrada
+                </strong>
+
+              </div>
+
+            `
+        }
+
+      </div>
+
+    </section>
+
+  `;
+
+
+  document
+    .getElementById(
+      'regionalCreateForm'
+    )
+    .addEventListener(
+      'submit',
+      createRegional
+    );
+
+}
+
+
+async function createRegional(event) {
+
+  event.preventDefault();
+
+
+  const input =
+    document.getElementById(
+      'newRegionalName'
+    );
+
+
+  const name =
+    input.value
+      .trim()
+      .toUpperCase();
+
+
+  if (!name) {
+    return;
+  }
+
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('regionals')
+      .insert({
+        name
+      });
+
+
+  if (error) {
+
+    alert(
+      error.code === '23505'
+        ? 'Esta Regional já existe.'
+        : error.message
+    );
+
+    return;
+
+  }
+
+
+  await loadRegionalsManager();
+
+}
+
+
+async function editRegional(
+  id,
+  oldName
+) {
+
+  const newName =
+    prompt(
+      'Novo nome da Regional:',
+      oldName
+    );
+
+
+  if (
+    !newName ||
+    !newName.trim()
+  ) {
+    return;
+  }
+
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('regionals')
+      .update({
+        name:
+          newName
+            .trim()
+            .toUpperCase(),
+
+        updated_at:
+          new Date()
+            .toISOString()
+      })
+      .eq(
+        'id',
+        id
+      );
+
+
+  if (error) {
+
+    alert(error.message);
+    return;
+
+  }
+
+
+  await loadRegionalsManager();
+
+}
+
+
+async function toggleRegional(
+  id,
+  active
+) {
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('regionals')
+      .update({
+        active,
+
+        updated_at:
+          new Date()
+            .toISOString()
+      })
+      .eq(
+        'id',
+        id
+      );
+
+
+  if (error) {
+
+    alert(error.message);
+    return;
+
+  }
+
+
+  await loadRegionalsManager();
+
+}
+
+
+async function deleteRegional(
+  id,
+  name
+) {
+
+  if (
+    !confirm(
+      `Excluir a Regional ${name}?`
+    )
+  ) {
+    return;
+  }
+
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('regionals')
+      .delete()
+      .eq(
+        'id',
+        id
+      );
+
+
+  if (error) {
+
+    alert(
+      'Não é possível excluir uma Regional que possui operações vinculadas. Use Inativar.'
+    );
+
+    return;
+
+  }
+
+
+  await loadRegionalsManager();
+
+}
+
+
+function filterRegionalRows() {
+
+  const value =
+    document
+      .getElementById(
+        'regionalSearch'
+      )
+      .value
+      .toLowerCase();
+
+
+  document
+    .querySelectorAll(
+      '.regional-row'
+    )
+    .forEach(
+      row => {
+
+        row.style.display =
+          row.dataset.search.includes(
+            value
+          )
+            ? ''
+            : 'none';
+
+      }
+    );
+
+}
+
+async function loadOperationsManager() {
+
+  const [
+    operationsResult,
+    regionalsResult
+  ] =
+    await Promise.all([
+
+      journeySupabase
+        .from('operations')
+        .select(`
+          id,
+          name,
+          active,
+          regional_id,
+
+          regionals (
+            id,
+            name
+          )
+        `)
+        .order('name'),
+
+
+      journeySupabase
+        .from('regionals')
+        .select(`
+          id,
+          name
+        `)
+        .eq(
+          'active',
+          true
+        )
+        .order('name')
+
+    ]);
+
+
+  if (
+    operationsResult.error ||
+    regionalsResult.error
+  ) {
+
+    alert(
+      operationsResult.error?.message
+      ||
+      regionalsResult.error?.message
+    );
+
+    return;
+
+  }
+
+
+  const operations =
+    operationsResult.data || [];
+
+
+  const regionals =
+    regionalsResult.data || [];
+
+
+  pageContent.innerHTML = `
+
+    <div class="settings-manager-header">
+
+      <button
+        class="back-button"
+        onclick="loadSettingsHome()"
+      >
+        ← Voltar
+      </button>
+
+
+      <div>
+
+        <h2>
+          Operações / HUBs
+        </h2>
+
+        <p>
+          Organize as operações dentro
+          de suas Regionais.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+
+      <form
+        id="operationCreateForm"
+        class="compact-create-form operation-create-form"
+      >
+
+        <select
+          id="newOperationRegional"
+          required
+        >
+
+          <option value="">
+            Selecione a Regional
+          </option>
+
+          ${
+            regionals.map(
+              regional => `
+
+                <option value="${regional.id}">
+                  ${escapeHTML(
+                    regional.name
+                  )}
+                </option>
+
+              `
+            ).join('')
+          }
+
+        </select>
+
+
+        <input
+          id="newOperationName"
+          type="text"
+          placeholder="Ex.: HUB-LPA-03"
+          required
+        >
+
+
+        <button
+          class="primary-action-button"
+          type="submit"
+        >
+          + Nova Operação
+        </button>
+
+      </form>
+
+
+      <div class="settings-toolbar">
+
+
+        <input
+          id="operationSearch"
+          type="search"
+          placeholder="Buscar operação..."
+          oninput="filterOperationsTable()"
+        >
+
+
+        <select
+          id="operationRegionalFilter"
+          onchange="filterOperationsTable()"
+        >
+
+          <option value="">
+            Todas as Regionais
+          </option>
+
+          ${
+            regionals.map(
+              regional => `
+
+                <option
+                  value="${regional.id}"
+                >
+                  ${escapeHTML(
+                    regional.name
+                  )}
+                </option>
+
+              `
+            ).join('')
+          }
+
+        </select>
+
+      </div>
+
+
+      <div class="table-wrapper">
+
+        <table class="journey-table">
+
+          <thead>
+
+            <tr>
+
+              <th>
+                Regional
+              </th>
+
+              <th>
+                Operação
+              </th>
+
+              <th>
+                Status
+              </th>
+
+              <th>
+                Ações
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody id="operationsTableBody">
+
+            ${
+              operations.map(
+                operation => `
+
+                  <tr
+                    class="operation-row"
+
+                    data-name="${escapeHTML(
+                      operation.name
+                        .toLowerCase()
+                    )}"
+
+                    data-regional="${
+                      operation.regional_id || ''
+                    }"
+                  >
+
+                    <td>
+
+                      ${
+                        operation.regionals?.name
+
+                        ? escapeHTML(
+                            operation.regionals.name
+                          )
+
+                        : `
+
+                          <span class="status-pill warning">
+                            Sem Regional
+                          </span>
+
+                        `
+                      }
+
+                    </td>
+
+
+                    <td>
+
+                      <strong>
+                        ${escapeHTML(
+                          operation.name
+                        )}
+                      </strong>
+
+                    </td>
+
+
+                    <td>
+
+                      <span
+                        class="status-pill ${
+                          operation.active
+                            ? 'success'
+                            : 'error'
+                        }"
+                      >
+                        ${
+                          operation.active
+                            ? 'Ativa'
+                            : 'Inativa'
+                        }
+                      </span>
+
+                    </td>
+
+
+                    <td>
+
+                      <div class="row-actions">
+
+                        <button
+                          onclick="
+                            editOperationName(
+                              '${operation.id}',
+                              '${escapeJS(
+                                operation.name
+                              )}'
+                            )
+                          "
+                        >
+                          Editar
+                        </button>
+
+
+                        <button
+                          onclick="
+                            toggleOperationStatus(
+                              '${operation.id}',
+                              ${!operation.active}
+                            )
+                          "
+                        >
+                          ${
+                            operation.active
+                              ? 'Inativar'
+                              : 'Ativar'
+                          }
+                        </button>
+
+
+                        <button
+                          class="danger-action"
+                          onclick="
+                            deleteOperationRecord(
+                              '${operation.id}',
+                              '${escapeJS(
+                                operation.name
+                              )}'
+                            )
+                          "
+                        >
+                          Excluir
+                        </button>
+
+                      </div>
+
+                    </td>
+
+                  </tr>
+
+                `
+              ).join('')
+            }
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+  `;
+
+
+  document
+    .getElementById(
+      'operationCreateForm'
+    )
+    .addEventListener(
+      'submit',
+      createOperationWithRegional
+    );
+
+}
+
+
+async function createOperationWithRegional(
+  event
+) {
+
+  event.preventDefault();
+
+
+  const regionalId =
+    document
+      .getElementById(
+        'newOperationRegional'
+      )
+      .value;
+
+
+  const name =
+    document
+      .getElementById(
+        'newOperationName'
+      )
+      .value
+      .trim()
+      .toUpperCase();
+
+
+  if (
+    !regionalId ||
+    !name
+  ) {
+    return;
+  }
+
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('operations')
+      .insert({
+
+        name,
+
+        regional_id:
+          regionalId,
+
+        active:
+          true
+
+      });
+
+
+  if (error) {
+
+    alert(
+      error.code === '23505'
+        ? 'Esta operação já existe.'
+        : error.message
+    );
+
+    return;
+
+  }
+
+
+  await loadOperationsManager();
+
+}
+
+
+async function editOperationName(
+  id,
+  oldName
+) {
+
+  const newName =
+    prompt(
+      'Novo nome/código da operação:',
+      oldName
+    );
+
+
+  if (
+    !newName ||
+    !newName.trim()
+  ) {
+    return;
+  }
+
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('operations')
+      .update({
+
+        name:
+          newName
+            .trim()
+            .toUpperCase()
+
+      })
+      .eq(
+        'id',
+        id
+      );
+
+
+  if (error) {
+
+    alert(error.message);
+    return;
+
+  }
+
+
+  await loadOperationsManager();
+
+}
+
+
+async function toggleOperationStatus(
+  id,
+  active
+) {
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('operations')
+      .update({
+        active
+      })
+      .eq(
+        'id',
+        id
+      );
+
+
+  if (error) {
+
+    alert(error.message);
+    return;
+
+  }
+
+
+  await loadOperationsManager();
+
+}
+
+
+async function deleteOperationRecord(
+  id,
+  name
+) {
+
+  if (
+    !confirm(
+      `Excluir a operação ${name}?`
+    )
+  ) {
+    return;
+  }
+
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('operations')
+      .delete()
+      .eq(
+        'id',
+        id
+      );
+
+
+  if (error) {
+
+    alert(
+      'Esta operação já possui vínculos. Use Inativar para preservar o histórico.'
+    );
+
+    return;
+
+  }
+
+
+  await loadOperationsManager();
+
+}
+
+
+function filterOperationsTable() {
+
+  const search =
+    document
+      .getElementById(
+        'operationSearch'
+      )
+      .value
+      .toLowerCase();
+
+
+  const regional =
+    document
+      .getElementById(
+        'operationRegionalFilter'
+      )
+      .value;
+
+
+  document
+    .querySelectorAll(
+      '.operation-row'
+    )
+    .forEach(
+      row => {
+
+        const nameOk =
+          row.dataset.name.includes(
+            search
+          );
+
+
+        const regionalOk =
+          !regional
+          ||
+          row.dataset.regional ===
+          regional;
+
+
+        row.style.display =
+          (
+            nameOk &&
+            regionalOk
+          )
+            ? ''
+            : 'none';
+
+      }
+    );
+
+}
+
+function loadCorporateUsersManager() {
+
+  pageContent.innerHTML = `
+
+    <div class="settings-manager-header">
+
+      <button
+        class="back-button"
+        onclick="loadSettingsHome()"
+      >
+        ← Voltar
+      </button>
+
+      <div>
+
+        <h2>
+          Acessos Corporativos
+        </h2>
+
+        <p>
+          Lideranças e Gestores de RH.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+      <div class="empty-state large">
+
+        <strong>
+          Gestão de Acessos
+        </strong>
+
+        <p>
+          Vamos trazer o cadastro atual para
+          uma tabela compacta com busca,
+          filtros, edição e paginação.
+        </p>
+
+      </div>
+
+    </section>
+
+  `;
+
+}
+
+
+function openCheckpointSettings() {
+
+  alert(
+    'Configuração dos checkpoints será implementada na próxima etapa.'
+  );
 
 }
 
