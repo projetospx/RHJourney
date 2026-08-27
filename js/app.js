@@ -2045,6 +2045,16 @@ function normalizeHeader(value) {
 // CONVERTER DATA
 // ============================================================
 
+// ============================================================
+// CONVERTER DATA PARA YYYY-MM-DD
+// Aceita:
+// - Data serial do Excel
+// - Objeto Date
+// - DD/MM/YYYY
+// - MM/DD/YYYY
+// - YYYY-MM-DD
+// ============================================================
+
 function excelDateToISO(value) {
 
   if (
@@ -2052,98 +2062,204 @@ function excelDateToISO(value) {
     value === undefined ||
     value === ''
   ) {
-
     return '';
-
   }
 
 
-  // Número serial do Excel
+  // ==========================================================
+  // 1. DATA SERIAL DO EXCEL
+  // ==========================================================
+
   if (
-    typeof value ===
-    'number'
+    typeof value === 'number'
   ) {
 
     const parsed =
-      XLSX.SSF
-        .parse_date_code(
-          value
-        );
+      XLSX.SSF.parse_date_code(
+        value
+      );
 
 
     if (!parsed) {
-
       return '';
-
     }
 
 
-    return (
-      String(parsed.y)
-      +
-      '-'
-      +
-      String(parsed.m)
-        .padStart(
-          2,
-          '0'
-        )
-      +
-      '-'
-      +
-      String(parsed.d)
-        .padStart(
-          2,
-          '0'
-        )
+    return buildValidISODate(
+      parsed.y,
+      parsed.m,
+      parsed.d
     );
 
   }
 
 
-  const text =
-    String(value)
-      .trim();
+  // ==========================================================
+  // 2. OBJETO DATE
+  // ==========================================================
 
-
-  // YYYY-MM-DD
   if (
-    /^\d{4}-\d{2}-\d{2}$/
-      .test(text)
+    value instanceof Date &&
+    !Number.isNaN(
+      value.getTime()
+    )
   ) {
 
-    return text;
+    return buildValidISODate(
+      value.getFullYear(),
+      value.getMonth() + 1,
+      value.getDate()
+    );
 
   }
 
 
+  let text =
+    String(value)
+      .trim();
+
+
+  if (!text) {
+    return '';
+  }
+
+
+  // Remove hora caso venha junto
+  text =
+    text.split(' ')[0]
+      .split('T')[0];
+
+
+  // ==========================================================
+  // 3. FORMATO ISO
+  // YYYY-MM-DD
+  // ==========================================================
+
+  const iso =
+    text.match(
+      /^(\d{4})-(\d{1,2})-(\d{1,2})$/
+    );
+
+
+  if (iso) {
+
+    return buildValidISODate(
+      Number(iso[1]),
+      Number(iso[2]),
+      Number(iso[3])
+    );
+
+  }
+
+
+  // ==========================================================
+  // 4. FORMATO COM /
+  // Pode ser:
+  //
   // DD/MM/YYYY
-  const br =
+  // MM/DD/YYYY
+  //
+  // Regras:
+  //
+  // 14/05/1990
+  // Primeiro > 12
+  // => DD/MM
+  //
+  // 05/14/1990
+  // Segundo > 12
+  // => MM/DD
+  //
+  // 05/06/1990
+  // Ambíguo
+  // => assume padrão brasileiro DD/MM
+  // ==========================================================
+
+  const slash =
     text.match(
       /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
     );
 
 
-  if (br) {
+  if (slash) {
 
-    return (
-      br[3]
-      +
-      '-'
-      +
-      br[2]
-        .padStart(
-          2,
-          '0'
-        )
-      +
-      '-'
-      +
-      br[1]
-        .padStart(
-          2,
-          '0'
-        )
+    const first =
+      Number(slash[1]);
+
+    const second =
+      Number(slash[2]);
+
+    const year =
+      Number(slash[3]);
+
+
+    let day;
+    let month;
+
+
+    // Exemplo:
+    // 14/05/1990
+    if (first > 12) {
+
+      day =
+        first;
+
+      month =
+        second;
+
+    }
+
+    // Exemplo:
+    // 05/14/1990
+    else if (second > 12) {
+
+      month =
+        first;
+
+      day =
+        second;
+
+    }
+
+    // Ambíguo:
+    // 05/06/1990
+    // Assume padrão brasileiro
+    else {
+
+      day =
+        first;
+
+      month =
+        second;
+
+    }
+
+
+    return buildValidISODate(
+      year,
+      month,
+      day
+    );
+
+  }
+
+
+  // ==========================================================
+  // 5. FORMATO COM -
+  // DD-MM-YYYY
+  // ==========================================================
+
+  const dash =
+    text.match(
+      /^(\d{1,2})-(\d{1,2})-(\d{4})$/
+    );
+
+
+  if (dash) {
+
+    return buildValidISODate(
+      Number(dash[3]),
+      Number(dash[2]),
+      Number(dash[1])
     );
 
   }
@@ -2153,6 +2269,81 @@ function excelDateToISO(value) {
 
 }
 
+
+// ============================================================
+// VALIDAR E CONSTRUIR DATA ISO
+// ============================================================
+
+function buildValidISODate(
+  year,
+  month,
+  day
+) {
+
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
+    return '';
+  }
+
+
+  if (
+    month < 1 ||
+    month > 12
+  ) {
+    return '';
+  }
+
+
+  if (
+    day < 1 ||
+    day > 31
+  ) {
+    return '';
+  }
+
+
+  const date =
+    new Date(
+      year,
+      month - 1,
+      day
+    );
+
+
+  // Evita coisas como 31/02
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return '';
+  }
+
+
+  return (
+    String(year)
+    +
+    '-'
+    +
+    String(month)
+      .padStart(
+        2,
+        '0'
+      )
+    +
+    '-'
+    +
+    String(day)
+      .padStart(
+        2,
+        '0'
+      )
+  );
+
+}
 
 // ============================================================
 // LER PLANILHA
