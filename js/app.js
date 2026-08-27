@@ -242,21 +242,28 @@ function applyRolePermissions() {
 // USUÁRIO
 // ============================================================
 
-const roles = {
+function renderUser() {
 
-  ADMIN_RH:
-    'ADM / RH',
+  sidebarName.textContent =
+    currentProfile.full_name;
 
-  HR_MANAGER:
-    'Gestor de RH',
 
-  LEADER:
-    'Liderança',
+  const roles = {
 
-  EMPLOYEE:
-    'Colaborador'
+    ADMIN_RH:
+      'ADM / RH',
 
-};
+    HR_MANAGER:
+      'Gestor de RH',
+
+    LEADER:
+      'Liderança',
+
+    EMPLOYEE:
+      'Colaborador'
+
+  };
+
 
   sidebarRole.textContent =
     roles[currentProfile.role]
@@ -270,7 +277,6 @@ const roles = {
     );
 
 }
-
 
 function getInitials(name) {
 
