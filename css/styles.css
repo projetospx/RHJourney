@@ -1735,3 +1735,763 @@ input {
   }
 
 }
+
+/* ============================================================
+   NOVOS COLABORADORES
+============================================================ */
+
+.module-header {
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 20px;
+
+  margin-bottom: 20px;
+}
+
+
+.module-header h2 {
+
+  margin:
+    0 0 4px;
+
+  font-size: 20px;
+}
+
+
+.module-header p {
+
+  margin: 0;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 12px;
+}
+
+
+.primary-action-button {
+
+  min-height: 42px;
+
+  padding:
+    0 18px;
+
+  border: none;
+
+  border-radius: 9px;
+
+  background:
+    var(--shopee-orange);
+
+  color: white;
+
+  font-size: 12px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+
+.primary-action-button:hover {
+
+  background:
+    var(--shopee-orange-hover);
+}
+
+
+.primary-action-button:disabled {
+
+  opacity: .55;
+
+  cursor: not-allowed;
+}
+
+
+/* MODAL */
+
+.modal-overlay {
+
+  position: fixed;
+
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 25px;
+
+  background:
+    rgba(0,0,0,.50);
+
+  z-index: 9999;
+}
+
+
+.import-modal {
+
+  width: 100%;
+  max-width: 1050px;
+
+  max-height:
+    calc(100vh - 50px);
+
+  overflow-y: auto;
+
+  background:
+    var(--surface);
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 16px;
+
+  box-shadow:
+    0 25px 80px
+    rgba(0,0,0,.25);
+}
+
+
+.modal-header {
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding:
+    20px 23px;
+
+  border-bottom:
+    1px solid var(--border);
+}
+
+
+.modal-header h2 {
+
+  margin:
+    0 0 3px;
+
+  font-size: 17px;
+}
+
+
+.modal-header p {
+
+  margin: 0;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 11px;
+}
+
+
+.modal-close {
+
+  width: 36px;
+  height: 36px;
+
+  border: none;
+
+  border-radius: 8px;
+
+  background:
+    var(--surface-secondary);
+
+  color:
+    var(--text);
+
+  font-size: 20px;
+
+  cursor: pointer;
+}
+
+
+/* UPLOAD */
+
+#uploadArea {
+
+  margin:
+    25px;
+}
+
+
+.upload-area {
+
+  min-height: 230px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  border:
+    2px dashed var(--border);
+
+  border-radius: 13px;
+
+  cursor: pointer;
+
+  transition:
+    all .2s ease;
+}
+
+
+.upload-area:hover {
+
+  border-color:
+    var(--shopee-orange);
+
+  background:
+    rgba(238,77,45,.025);
+}
+
+
+.upload-icon {
+
+  width: 50px;
+  height: 50px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 13px;
+
+  border-radius: 12px;
+
+  background:
+    rgba(238,77,45,.10);
+
+  color:
+    var(--shopee-orange);
+
+  font-size: 23px;
+}
+
+
+.upload-area strong {
+
+  margin-bottom: 5px;
+
+  font-size: 14px;
+}
+
+
+.upload-area p {
+
+  margin:
+    0 0 8px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 11px;
+}
+
+
+.upload-area span {
+
+  padding:
+    4px 8px;
+
+  border-radius: 20px;
+
+  background:
+    var(--surface-secondary);
+
+  color:
+    var(--text-secondary);
+
+  font-size: 9px;
+}
+
+
+.template-info {
+
+  margin:
+    0 25px 25px;
+
+  padding: 15px;
+
+  border-radius: 10px;
+
+  background:
+    var(--surface-secondary);
+}
+
+
+.template-info strong {
+
+  display: block;
+
+  margin-bottom: 5px;
+
+  font-size: 11px;
+}
+
+
+.template-info p {
+
+  margin: 0;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 10px;
+
+  line-height: 1.5;
+}
+
+
+/* IMPORT PREVIEW */
+
+#importPreview {
+
+  padding: 25px;
+}
+
+
+.import-summary {
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap: 12px;
+
+  margin-bottom: 15px;
+}
+
+
+.import-summary > div {
+
+  padding: 15px;
+
+  border-radius: 10px;
+
+  background:
+    var(--surface-secondary);
+}
+
+
+.import-summary span {
+
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 10px;
+}
+
+
+.import-summary strong {
+
+  font-size: 22px;
+}
+
+
+.summary-valid strong {
+  color: #16A34A;
+}
+
+
+.summary-error strong {
+  color: #DC2626;
+}
+
+
+.import-file-name {
+
+  margin-bottom: 15px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 10px;
+}
+
+
+.import-file-name strong {
+  color: var(--text);
+}
+
+
+/* TABELA */
+
+.table-wrapper {
+
+  width: 100%;
+
+  overflow-x: auto;
+}
+
+
+.journey-table {
+
+  width: 100%;
+
+  border-collapse: collapse;
+
+  font-size: 11px;
+}
+
+
+.journey-table th {
+
+  padding:
+    11px 12px;
+
+  border-bottom:
+    1px solid var(--border);
+
+  color:
+    var(--text-secondary);
+
+  text-align: left;
+
+  font-size: 9px;
+
+  text-transform: uppercase;
+}
+
+
+.journey-table td {
+
+  padding:
+    13px 12px;
+
+  border-bottom:
+    1px solid var(--border);
+
+  vertical-align: middle;
+}
+
+
+.journey-table tbody tr:hover {
+
+  background:
+    var(--surface-secondary);
+}
+
+
+.journey-table td strong {
+
+  display: block;
+
+  font-size: 11px;
+}
+
+
+.table-subtext {
+
+  display: block;
+
+  margin-top: 3px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 9px;
+}
+
+
+/* STATUS */
+
+.status-pill {
+
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 22px;
+
+  padding:
+    0 8px;
+
+  border-radius: 20px;
+
+  font-size: 8px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+}
+
+
+.status-pill.success {
+
+  background:
+    rgba(22,163,74,.10);
+
+  color:
+    #16A34A;
+}
+
+
+.status-pill.error {
+
+  background:
+    rgba(220,38,38,.10);
+
+  color:
+    #DC2626;
+}
+
+
+.status-pill.warning {
+
+  background:
+    rgba(234,179,8,.12);
+
+  color:
+    #B77900;
+}
+
+
+.status-pill.waiting {
+
+  background:
+    rgba(37,99,235,.10);
+
+  color:
+    #2563EB;
+}
+
+
+/* AÇÕES */
+
+.import-actions {
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 10px;
+
+  margin-top: 18px;
+}
+
+
+/* RESULTADO */
+
+.import-result {
+
+  padding:
+    25px 10px 5px;
+
+  text-align: center;
+}
+
+
+.result-icon {
+
+  width: 56px;
+  height: 56px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin:
+    0 auto 12px;
+
+  border-radius: 50%;
+
+  font-size: 23px;
+  font-weight: 800;
+}
+
+
+.result-icon.success {
+
+  background:
+    rgba(22,163,74,.10);
+
+  color:
+    #16A34A;
+}
+
+
+.result-icon.warning {
+
+  background:
+    rgba(234,179,8,.12);
+
+  color:
+    #B77900;
+}
+
+
+.import-result h2 {
+
+  margin:
+    0 0 20px;
+
+  font-size: 18px;
+}
+
+
+.result-stats {
+
+  max-width: 400px;
+
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 10px;
+
+  margin:
+    0 auto 20px;
+}
+
+
+.result-stats div {
+
+  padding: 15px;
+
+  border-radius: 10px;
+
+  background:
+    var(--surface-secondary);
+}
+
+
+.result-stats span {
+
+  display: block;
+
+  margin-bottom: 5px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 9px;
+}
+
+
+.result-stats strong {
+  font-size: 22px;
+}
+
+
+.import-errors {
+
+  max-width: 700px;
+
+  margin:
+    20px auto;
+
+  padding: 15px;
+
+  text-align: left;
+
+  border-radius: 10px;
+
+  background:
+    rgba(220,38,38,.05);
+}
+
+
+.import-error-row {
+
+  margin-top: 10px;
+
+  padding-top: 10px;
+
+  border-top:
+    1px solid
+    rgba(220,38,38,.12);
+}
+
+
+.import-error-row span {
+
+  font-size: 9px;
+
+  color:
+    var(--text-secondary);
+}
+
+
+.import-error-row strong {
+
+  display: block;
+
+  margin-top: 2px;
+
+  font-size: 11px;
+}
+
+
+.import-error-row p {
+
+  margin:
+    3px 0 0;
+
+  color:
+    #DC2626;
+
+  font-size: 10px;
+}
+
+
+/* MOBILE */
+
+@media (max-width: 700px) {
+
+  .module-header {
+
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+  }
+
+
+  .primary-action-button {
+    width: 100%;
+  }
+
+
+  .modal-overlay {
+    padding: 8px;
+  }
+
+
+  .import-modal {
+
+    max-height:
+      calc(100vh - 16px);
+
+    border-radius: 12px;
+  }
+
+
+  .import-summary {
+
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .import-actions {
+
+    flex-direction:
+      column-reverse;
+  }
+
+
+  .import-actions button {
+    width: 100%;
+  }
+
+}
