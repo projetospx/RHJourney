@@ -6,9 +6,12 @@
 let currentUser = null;
 let currentProfile = null;
 
+let importRows = [];
+let selectedImportFile = null;
+
 
 // ============================================================
-// ELEMENTOS
+// ELEMENTOS PRINCIPAIS
 // ============================================================
 
 const pageContent =
@@ -72,9 +75,9 @@ async function initializeApp() {
       sessionData.session.user;
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // BUSCAR PERFIL
-    // --------------------------------------------------------
+    // ========================================================
 
     const {
       data: profile,
@@ -103,9 +106,11 @@ async function initializeApp() {
 
 
     if (!profile) {
+
       throw new Error(
         'Perfil não encontrado.'
       );
+
     }
 
 
@@ -115,8 +120,10 @@ async function initializeApp() {
         .auth
         .signOut();
 
+
       window.location.href =
         'index.html';
+
 
       return;
 
@@ -139,7 +146,7 @@ async function initializeApp() {
 
     renderUser();
 
-    loadTheme();
+    await loadTheme();
 
     await loadDashboard();
 
@@ -152,7 +159,9 @@ async function initializeApp() {
       error
     );
 
+
     pageContent.innerHTML = `
+
       <div class="system-error">
 
         <h2>
@@ -171,6 +180,7 @@ async function initializeApp() {
         </button>
 
       </div>
+
     `;
 
   }
@@ -197,8 +207,10 @@ function applyRolePermissions() {
 
     adminElements.forEach(
       element => {
+
         element.style.display =
           'none';
+
       }
     );
 
@@ -233,7 +245,8 @@ function renderUser() {
 
   sidebarRole.textContent =
     roles[currentProfile.role]
-    || currentProfile.role;
+    ||
+    currentProfile.role;
 
 
   sidebarAvatar.textContent =
@@ -247,12 +260,16 @@ function renderUser() {
 function getInitials(name) {
 
   if (!name) {
+
     return 'U';
+
   }
 
 
   const parts =
-    name.trim().split(/\s+/);
+    name
+      .trim()
+      .split(/\s+/);
 
 
   if (parts.length === 1) {
@@ -268,7 +285,8 @@ function getInitials(name) {
     parts[0][0]
     +
     parts[parts.length - 1][0]
-  ).toUpperCase();
+  )
+    .toUpperCase();
 
 }
 
@@ -289,7 +307,8 @@ async function loadDashboard() {
 
 
   pageSubtitle.textContent =
-    currentProfile.role === 'ADMIN_RH'
+    currentProfile.role ===
+    'ADMIN_RH'
       ? 'Acompanhe os novos colaboradores e as jornadas em andamento.'
       : 'Acompanhe sua jornada e suas avaliações.';
 
@@ -356,6 +375,7 @@ async function loadAdminDashboard() {
             'WAITING'
           ),
 
+
         journeySupabase
           .from('employments')
           .select(
@@ -370,6 +390,7 @@ async function loadAdminDashboard() {
             'IN_JOURNEY'
           ),
 
+
         journeySupabase
           .from('employments')
           .select(
@@ -383,6 +404,7 @@ async function loadAdminDashboard() {
             'status',
             'COMPLETED'
           ),
+
 
         journeySupabase
           .from('people')
@@ -400,11 +422,14 @@ async function loadAdminDashboard() {
     const waiting =
       waitingResult.count || 0;
 
+
     const inJourney =
       journeyResult.count || 0;
 
+
     const completed =
       completedResult.count || 0;
+
 
     const totalPeople =
       peopleResult.count || 0;
@@ -433,10 +458,13 @@ async function loadAdminDashboard() {
   catch (error) {
 
     console.error(
+      'Erro Dashboard:',
       error
     );
 
+
     pageContent.innerHTML = `
+
       <div class="system-error">
 
         <h2>
@@ -448,12 +476,17 @@ async function loadAdminDashboard() {
         </p>
 
       </div>
+
     `;
 
   }
 
 }
 
+
+// ============================================================
+// RENDER DASHBOARD ADM/RH
+// ============================================================
 
 function renderAdminDashboard(data) {
 
@@ -511,6 +544,7 @@ function renderAdminDashboard(data) {
 
 
       <div class="metric-grid">
+
 
         <button
           class="metric-card"
@@ -630,6 +664,7 @@ function renderAdminDashboard(data) {
 
     <div class="dashboard-columns">
 
+
       <section class="dashboard-panel">
 
         <div class="panel-header">
@@ -670,13 +705,17 @@ function renderAdminDashboard(data) {
               <div>
 
                 <strong>
+
                   ${data.pending}
+
                   ${
                     data.pending === 1
                       ? 'avaliação necessita'
                       : 'avaliações necessitam'
                   }
+
                   de acompanhamento
+
                 </strong>
 
                 <p>
@@ -734,6 +773,7 @@ function renderAdminDashboard(data) {
 
 
         <div class="base-summary">
+
 
           <div>
 
@@ -799,7 +839,8 @@ function renderAdminDashboard(data) {
 async function calculatePendingAssessments() {
 
   const now =
-    new Date().toISOString();
+    new Date()
+      .toISOString();
 
 
   const {
@@ -807,7 +848,9 @@ async function calculatePendingAssessments() {
     error
   } =
     await journeySupabase
-      .from('journey_checkpoints')
+      .from(
+        'journey_checkpoints'
+      )
       .select(`
         id,
         checkpoint,
@@ -822,11 +865,16 @@ async function calculatePendingAssessments() {
 
 
   if (error) {
+
     throw error;
+
   }
 
 
-  if (!checkpoints) {
+  if (
+    !checkpoints ||
+    checkpoints.length === 0
+  ) {
 
     return {
       total: 0
@@ -845,8 +893,7 @@ async function calculatePendingAssessments() {
 
     const {
       count,
-      error:
-        submissionError
+      error: submissionError
     } =
       await journeySupabase
         .from(
@@ -870,16 +917,19 @@ async function calculatePendingAssessments() {
 
 
     if (submissionError) {
+
+      console.warn(
+        submissionError
+      );
+
       continue;
+
     }
 
 
-    // Esperamos:
-    // 1 resposta do colaborador
-    // 1 resposta do líder
-    //
-    // Portanto, menos de 2 = pendência
-    if ((count || 0) < 2) {
+    if (
+      (count || 0) < 2
+    ) {
 
       pendingCount +=
         2 - (count || 0);
@@ -898,7 +948,7 @@ async function calculatePendingAssessments() {
 
 
 // ============================================================
-// LEADER DASHBOARD - BASE
+// DASHBOARD LÍDER
 // ============================================================
 
 async function loadLeaderDashboard() {
@@ -919,7 +969,8 @@ async function loadLeaderDashboard() {
             currentProfile
               .full_name
               .split(' ')[0]
-          )} 👋
+          )}
+          👋
         </h2>
 
         <p>
@@ -955,7 +1006,7 @@ async function loadLeaderDashboard() {
 
 
 // ============================================================
-// EMPLOYEE DASHBOARD - BASE
+// DASHBOARD COLABORADOR
 // ============================================================
 
 async function loadEmployeeDashboard() {
@@ -976,12 +1027,12 @@ async function loadEmployeeDashboard() {
             currentProfile
               .full_name
               .split(' ')[0]
-          )} 👋
+          )}
+          👋
         </h2>
 
         <p>
-          Acompanhe aqui sua jornada
-          de integração.
+          Acompanhe aqui sua jornada de integração.
         </p>
 
       </div>
@@ -1044,6 +1095,7 @@ async function openPage(page) {
 
   switch (page) {
 
+
     case 'dashboard':
 
       await loadDashboard();
@@ -1053,15 +1105,29 @@ async function openPage(page) {
 
     case 'new-employees':
 
-  pageTitle.textContent =
-    'Novos Colaboradores';
+      if (
+        currentProfile.role !==
+        'ADMIN_RH'
+      ) {
 
-  pageSubtitle.textContent =
-    'Importe e prepare colaboradores antes de iniciar o acompanhamento.';
+        await loadDashboard();
 
-  await loadNewEmployeesPage();
+        return;
 
-  break;
+      }
+
+
+      pageTitle.textContent =
+        'Novos Colaboradores';
+
+
+      pageSubtitle.textContent =
+        'Importe e prepare colaboradores antes de iniciar o acompanhamento.';
+
+
+      await loadNewEmployeesPage();
+
+      break;
 
 
     case 'journeys':
@@ -1069,8 +1135,10 @@ async function openPage(page) {
       pageTitle.textContent =
         'Jornadas';
 
+
       pageSubtitle.textContent =
         'Acompanhe o progresso D1 → D90.';
+
 
       renderComingSoon(
         'Gestão de Jornadas',
@@ -1085,8 +1153,10 @@ async function openPage(page) {
       pageTitle.textContent =
         'Avaliações';
 
+
       pageSubtitle.textContent =
         'Avaliações de colaboradores e lideranças.';
+
 
       renderComingSoon(
         'Avaliações',
@@ -1101,8 +1171,10 @@ async function openPage(page) {
       pageTitle.textContent =
         'Pendências';
 
+
       pageSubtitle.textContent =
         'Avaliações próximas do prazo ou atrasadas.';
+
 
       renderComingSoon(
         'Central de Pendências',
@@ -1117,8 +1189,10 @@ async function openPage(page) {
       pageTitle.textContent =
         'Indicadores';
 
+
       pageSubtitle.textContent =
         'Dados consolidados das jornadas.';
+
 
       renderComingSoon(
         'Indicadores',
@@ -1133,8 +1207,10 @@ async function openPage(page) {
       pageTitle.textContent =
         'Configurações';
 
+
       pageSubtitle.textContent =
         'Parâmetros administrativos do Shopee Journey.';
+
 
       renderComingSoon(
         'Configurações',
@@ -1168,11 +1244,10 @@ function setActiveMenu(page) {
     .forEach(
       item => {
 
-        item.classList
-          .toggle(
-            'active',
-            item.dataset.page === page
-          );
+        item.classList.toggle(
+          'active',
+          item.dataset.page === page
+        );
 
       }
     );
@@ -1213,12 +1288,10 @@ function renderComingSoon(
 
 
 // ============================================================
-// PENDING BADGE
+// BADGE PENDÊNCIAS
 // ============================================================
 
-function updatePendingBadge(
-  number
-) {
+function updatePendingBadge(number) {
 
   const badge =
     document.getElementById(
@@ -1227,7 +1300,9 @@ function updatePendingBadge(
 
 
   if (!badge) {
+
     return;
+
   }
 
 
@@ -1237,6 +1312,7 @@ function updatePendingBadge(
       number > 99
         ? '99+'
         : number;
+
 
     badge.classList
       .remove('hidden');
@@ -1257,12 +1333,62 @@ function updatePendingBadge(
 // TEMA
 // ============================================================
 
-function loadTheme() {
+async function loadTheme() {
 
-  const savedTheme =
+  let savedTheme =
     localStorage.getItem(
       'journey-theme'
-    ) || 'light';
+    )
+    ||
+    'light';
+
+
+  if (currentProfile) {
+
+    try {
+
+      const {
+        data
+      } =
+        await journeySupabase
+          .from(
+            'user_preferences'
+          )
+          .select('theme')
+          .eq(
+            'user_id',
+            currentProfile.id
+          )
+          .maybeSingle();
+
+
+      if (
+        data?.theme
+      ) {
+
+        savedTheme =
+          data.theme;
+
+
+        localStorage.setItem(
+          'journey-theme',
+          savedTheme
+        );
+
+      }
+
+    }
+
+    catch (error) {
+
+      console.warn(
+        'Não foi possível buscar tema no banco.',
+        error
+      );
+
+    }
+
+  }
 
 
   document.documentElement
@@ -1318,8 +1444,9 @@ themeToggleApp
 
       if (currentProfile) {
 
-        try {
-
+        const {
+          error
+        } =
           await journeySupabase
             .from(
               'user_preferences'
@@ -1336,9 +1463,8 @@ themeToggleApp
                   .toISOString()
             });
 
-        }
 
-        catch (error) {
+        if (error) {
 
           console.warn(
             'Tema salvo apenas localmente.',
@@ -1410,108 +1536,60 @@ sidebarToggle
 
 
 // ============================================================
-// HELPERS
+// NOVOS COLABORADORES
 // ============================================================
 
-function showPageLoading() {
-
-  pageContent.innerHTML = `
-    <div class="page-loading">
-      Carregando...
-    </div>
-  `;
-
-}
-
-
-function escapeHTML(value) {
+async function loadNewEmployeesPage() {
 
   if (
-    value === null
-    ||
-    value === undefined
+    currentProfile.role !==
+    'ADMIN_RH'
   ) {
 
-    return '';
+    return;
 
   }
 
 
-  return String(value)
-    .replace(
-      /&/g,
-      '&amp;'
-    )
-    .replace(
-      /</g,
-      '&lt;'
-    )
-    .replace(
-      />/g,
-      '&gt;'
-    )
-    .replace(
-      /"/g,
-      '&quot;'
-    )
-    .replace(
-      /'/g,
-      '&#039;'
-    );
+  pageContent.innerHTML = `
 
-}
+    <div class="module-header">
+
+      <div>
+
+        <h2>
+          Novos Colaboradores
+        </h2>
+
+        <p>
+          Importe colaboradores e prepare
+          o início das jornadas.
+        </p>
+
+      </div>
 
 
-// ============================================================
-// START
-// ============================================================
+      <div class="module-actions">
 
-// ============================================================
-// NOVOS COLABORADORES
-// ============================================================
-
-let importRows = [];
-let selectedImportFile = null;
+        <button
+          class="secondary-button"
+          onclick="downloadEmployeeTemplate()"
+        >
+          ↓ Baixar modelo
+        </button>
 
 
-// ============================================================
-// CARREGAR TELA
-// ============================================================
+        <button
+          class="primary-action-button"
+          onclick="openImportModal()"
+        >
+          + Importar planilha
+        </button>
 
-<div class="module-header">
+      </div>
 
-  <div>
+    </div>
 
-    <h2>
-      Novos Colaboradores
-    </h2>
-
-    <p>
-      Importe colaboradores e prepare o início
-      das jornadas.
-    </p>
-
-  </div>
-
-  <div class="module-actions">
-
-    <button
-      class="secondary-button"
-      onclick="downloadEmployeeTemplate()"
-    >
-      ↓ Baixar modelo
-    </button>
-
-    <button
-      class="primary-action-button"
-      onclick="openImportModal()"
-    >
-      + Importar planilha
-    </button>
-
-  </div>
-
-</div>
 
     <section class="dashboard-panel">
 
@@ -1532,6 +1610,7 @@ let selectedImportFile = null;
 
       </div>
 
+
       <div id="waitingEmployees">
 
         <div class="page-loading">
@@ -1550,6 +1629,7 @@ let selectedImportFile = null;
 
       <div class="import-modal">
 
+
         <div class="modal-header">
 
           <div>
@@ -1564,9 +1644,11 @@ let selectedImportFile = null;
 
           </div>
 
+
           <button
             class="modal-close"
             onclick="closeImportModal()"
+            type="button"
           >
             ×
           </button>
@@ -1575,6 +1657,7 @@ let selectedImportFile = null;
 
 
         <div id="importStepUpload">
+
 
           <div
             id="uploadArea"
@@ -1615,33 +1698,39 @@ let selectedImportFile = null;
 
           <div class="template-info">
 
-  <div>
+            <div>
 
-    <strong>
-      Utilize o modelo oficial
-    </strong>
+              <strong>
+                Utilize o modelo oficial
+              </strong>
 
-    <p>
-      Para evitar erros na importação, utilize
-      a planilha padrão do Shopee Journey.
-    </p>
+              <p>
+                Para evitar erros na importação,
+                utilize a planilha padrão do
+                Shopee Journey.
+              </p>
 
-  </div>
+            </div>
 
-  <button
-    class="secondary-button"
-    onclick="downloadEmployeeTemplate()"
-  >
-    ↓ Baixar modelo
-  </button>
 
-</div>
+            <button
+              class="secondary-button"
+              onclick="downloadEmployeeTemplate()"
+              type="button"
+            >
+              ↓ Baixar modelo
+            </button>
+
+          </div>
+
+        </div>
 
 
         <div
           id="importPreview"
           class="hidden"
         ></div>
+
 
       </div>
 
@@ -1656,15 +1745,20 @@ let selectedImportFile = null;
     );
 
 
-  fileInput.addEventListener(
-    'change',
-    handleEmployeeFile
-  );
+  if (fileInput) {
+
+    fileInput.addEventListener(
+      'change',
+      handleEmployeeFile
+    );
+
+  }
 
 
   await loadWaitingEmployees();
 
 }
+
 
 // ============================================================
 // BAIXAR MODELO DE IMPORTAÇÃO
@@ -1672,36 +1766,32 @@ let selectedImportFile = null;
 
 function downloadEmployeeTemplate() {
 
-  // ----------------------------------------------------------
-  // ABA DE IMPORTAÇÃO
-  // ----------------------------------------------------------
+  if (
+    typeof XLSX ===
+    'undefined'
+  ) {
+
+    alert(
+      'Biblioteca Excel não carregada.'
+    );
+
+    return;
+
+  }
+
 
   const importData = [
 
-  [
-    'NOME',
-    'CPF',
-    'DATA DE NASCIMENTO',
-    'BPO',
-    'DATA DE ADMISSÃO',
-    'EMAIL',
-    'TELEFONE',
-    'HUB/OPERAÇÃO',
-    'HORÁRIO/ESCALA'
-  ]
-
-];
-
     [
-      'João da Silva',
-      '12345678900',
-      '01/01/2000',
-      'NOME DA BPO',
-      '27/08/2026',
-      'joao@email.com',
-      '91999999999',
-      'HUB-LXX-01',
-      '06:00 às 14:20'
+      'NOME',
+      'CPF',
+      'DATA DE NASCIMENTO',
+      'BPO',
+      'DATA DE ADMISSÃO',
+      'EMAIL',
+      'TELEFONE',
+      'HUB/OPERAÇÃO',
+      'HORÁRIO/ESCALA'
     ]
 
   ];
@@ -1713,25 +1803,20 @@ function downloadEmployeeTemplate() {
     );
 
 
-  // Largura das colunas
   importSheet['!cols'] = [
 
-    { wch: 28 }, // Nome
-    { wch: 16 }, // CPF
-    { wch: 20 }, // Nascimento
-    { wch: 22 }, // BPO
-    { wch: 20 }, // Admissão
-    { wch: 30 }, // Email
-    { wch: 18 }, // Telefone
-    { wch: 22 }, // HUB
-    { wch: 25 }  // Horário
+    { wch: 30 },
+    { wch: 16 },
+    { wch: 22 },
+    { wch: 25 },
+    { wch: 20 },
+    { wch: 32 },
+    { wch: 20 },
+    { wch: 25 },
+    { wch: 28 }
 
   ];
 
-
-  // ----------------------------------------------------------
-  // ABA DE INSTRUÇÕES
-  // ----------------------------------------------------------
 
   const instructions = [
 
@@ -1824,14 +1909,12 @@ function downloadEmployeeTemplate() {
 
 
   instructionsSheet['!cols'] = [
-    { wch: 24 },
-    { wch: 80 }
+
+    { wch: 25 },
+    { wch: 85 }
+
   ];
 
-
-  // ----------------------------------------------------------
-  // CRIAR WORKBOOK
-  // ----------------------------------------------------------
 
   const workbook =
     XLSX.utils.book_new();
@@ -1851,10 +1934,6 @@ function downloadEmployeeTemplate() {
   );
 
 
-  // ----------------------------------------------------------
-  // GERAR DOWNLOAD
-  // ----------------------------------------------------------
-
   XLSX.writeFile(
     workbook,
     'Modelo_Importacao_Shopee_Journey.xlsx'
@@ -1862,8 +1941,9 @@ function downloadEmployeeTemplate() {
 
 }
 
+
 // ============================================================
-// MODAL
+// MODAL DE IMPORTAÇÃO
 // ============================================================
 
 function openImportModal() {
@@ -1871,31 +1951,47 @@ function openImportModal() {
   selectedImportFile =
     null;
 
+
   importRows =
     [];
 
 
-  document
-    .getElementById(
+  const modal =
+    document.getElementById(
       'importModal'
-    )
-    .classList
-    .remove('hidden');
+    );
 
 
-  document
-    .getElementById(
+  const upload =
+    document.getElementById(
       'importStepUpload'
-    )
-    .classList
+    );
+
+
+  const preview =
+    document.getElementById(
+      'importPreview'
+    );
+
+
+  if (!modal) {
+
+    return;
+
+  }
+
+
+  modal.classList
     .remove('hidden');
 
 
-  document
-    .getElementById(
-      'importPreview'
-    )
-    .classList
+  upload
+    ?.classList
+    .remove('hidden');
+
+
+  preview
+    ?.classList
     .add('hidden');
 
 }
@@ -1914,14 +2010,14 @@ function closeImportModal() {
 
 
 // ============================================================
-// NORMALIZAR CABEÇALHOS
+// NORMALIZAR CABEÇALHO
 // ============================================================
 
-function normalizeHeader(
-  value
-) {
+function normalizeHeader(value) {
 
-  return String(value || '')
+  return String(
+    value || ''
+  )
     .trim()
     .normalize('NFD')
     .replace(
@@ -1946,35 +2042,39 @@ function normalizeHeader(
 
 
 // ============================================================
-// CONVERTER DATAS
+// CONVERTER DATA
 // ============================================================
 
-function excelDateToISO(
-  value
-) {
+function excelDateToISO(value) {
 
   if (
     value === null ||
     value === undefined ||
     value === ''
   ) {
+
     return '';
+
   }
 
 
-  // Excel serial
+  // Número serial do Excel
   if (
-    typeof value === 'number'
+    typeof value ===
+    'number'
   ) {
 
     const parsed =
-      XLSX.SSF.parse_date_code(
-        value
-      );
+      XLSX.SSF
+        .parse_date_code(
+          value
+        );
 
 
     if (!parsed) {
+
       return '';
+
     }
 
 
@@ -1984,12 +2084,18 @@ function excelDateToISO(
       '-'
       +
       String(parsed.m)
-        .padStart(2, '0')
+        .padStart(
+          2,
+          '0'
+        )
       +
       '-'
       +
       String(parsed.d)
-        .padStart(2, '0')
+        .padStart(
+          2,
+          '0'
+        )
     );
 
   }
@@ -2005,7 +2111,9 @@ function excelDateToISO(
     /^\d{4}-\d{2}-\d{2}$/
       .test(text)
   ) {
+
     return text;
+
   }
 
 
@@ -2023,17 +2131,19 @@ function excelDateToISO(
       +
       '-'
       +
-      br[2].padStart(
-        2,
-        '0'
-      )
+      br[2]
+        .padStart(
+          2,
+          '0'
+        )
       +
       '-'
       +
-      br[1].padStart(
-        2,
-        '0'
-      )
+      br[1]
+        .padStart(
+          2,
+          '0'
+        )
     );
 
   }
@@ -2048,16 +2158,18 @@ function excelDateToISO(
 // LER PLANILHA
 // ============================================================
 
-async function handleEmployeeFile(
-  event
-) {
+async function handleEmployeeFile(event) {
 
   const file =
-    event.target.files[0];
+    event
+      .target
+      .files[0];
 
 
   if (!file) {
+
     return;
+
   }
 
 
@@ -2075,11 +2187,8 @@ async function handleEmployeeFile(
       XLSX.read(
         buffer,
         {
-          type:
-            'array',
-
-          cellDates:
-            false
+          type: 'array',
+          cellDates: false
         }
       );
 
@@ -2101,8 +2210,7 @@ async function handleEmployeeFile(
         .sheet_to_json(
           sheet,
           {
-            defval:
-              ''
+            defval: ''
           }
         );
 
@@ -2130,8 +2238,14 @@ async function handleEmployeeFile(
 
   catch (error) {
 
+    console.error(
+      error
+    );
+
+
     alert(
-      error.message ||
+      error.message
+      ||
       'Não foi possível ler a planilha.'
     );
 
@@ -2141,12 +2255,10 @@ async function handleEmployeeFile(
 
 
 // ============================================================
-// MAPEAR LINHA
+// MAPEAR LINHA DA PLANILHA
 // ============================================================
 
-function mapSpreadsheetRow(
-  original
-) {
+function mapSpreadsheetRow(original) {
 
   const normalized = {};
 
@@ -2159,7 +2271,9 @@ function mapSpreadsheetRow(
   ) {
 
     normalized[
-      normalizeHeader(key)
+      normalizeHeader(
+        key
+      )
     ] =
       value;
 
@@ -2169,11 +2283,14 @@ function mapSpreadsheetRow(
   return {
 
     nome:
-      normalized.NOME
-      ||
-      normalized.NOME_COMPLETO
-      ||
-      '',
+      String(
+        normalized.NOME
+        ||
+        normalized.NOME_COMPLETO
+        ||
+        ''
+      )
+        .trim(),
 
 
     cpf:
@@ -2185,10 +2302,6 @@ function mapSpreadsheetRow(
         .replace(
           /\D/g,
           ''
-        )
-        .padStart(
-          11,
-          '0'
         ),
 
 
@@ -2278,20 +2391,20 @@ function mapSpreadsheetRow(
 
 
 // ============================================================
-// VALIDAR LINHA NO FRONT
+// VALIDAR LINHA
 // ============================================================
 
-function validateImportRow(
-  row
-) {
+function validateImportRow(row) {
 
   const errors = [];
 
 
   if (!row.nome) {
+
     errors.push(
       'Nome'
     );
+
   }
 
 
@@ -2299,64 +2412,80 @@ function validateImportRow(
     !row.cpf ||
     row.cpf.length !== 11
   ) {
+
     errors.push(
       'CPF'
     );
+
   }
 
 
   if (
     !row.data_nascimento
   ) {
+
     errors.push(
       'Nascimento'
     );
+
   }
 
 
   if (!row.bpo) {
+
     errors.push(
       'BPO'
     );
+
   }
 
 
   if (
     !row.data_admissao
   ) {
+
     errors.push(
       'Admissão'
     );
+
   }
 
 
   if (!row.email) {
+
     errors.push(
       'E-mail'
     );
+
   }
 
 
   if (!row.telefone) {
+
     errors.push(
       'Telefone'
     );
+
   }
 
 
   if (!row.operacao) {
+
     errors.push(
       'Operação'
     );
+
   }
 
 
   if (
     !row.horario_escala
   ) {
+
     errors.push(
       'Horário/Escala'
     );
+
   }
 
 
@@ -2366,7 +2495,7 @@ function validateImportRow(
 
 
 // ============================================================
-// PRÉVIA
+// PRÉVIA DA IMPORTAÇÃO
 // ============================================================
 
 function renderImportPreview() {
@@ -2381,6 +2510,16 @@ function renderImportPreview() {
     document.getElementById(
       'importStepUpload'
     );
+
+
+  if (
+    !preview ||
+    !uploadStep
+  ) {
+
+    return;
+
+  }
 
 
   uploadStep
@@ -2402,103 +2541,120 @@ function renderImportPreview() {
 
 
   const rowsHTML =
-    importRows.map(
-      (row, index) => {
+    importRows
+      .map(
+        (row, index) => {
 
-        const errors =
-          validateImportRow(
-            row
-          );
-
-
-        const isValid =
-          errors.length === 0;
+          const errors =
+            validateImportRow(
+              row
+            );
 
 
-        if (isValid) {
-          valid++;
-        }
-        else {
-          invalid++;
-        }
+          const isValid =
+            errors.length === 0;
 
 
-        return `
+          if (isValid) {
 
-          <tr>
+            valid++;
 
-            <td>
-              ${index + 2}
-            </td>
+          }
 
-            <td>
+          else {
 
-              <strong>
+            invalid++;
+
+          }
+
+
+          return `
+
+            <tr>
+
+              <td>
+                ${index + 2}
+              </td>
+
+
+              <td>
+
+                <strong>
+                  ${escapeHTML(
+                    row.nome
+                    ||
+                    'Não informado'
+                  )}
+                </strong>
+
+              </td>
+
+
+              <td>
                 ${escapeHTML(
-                  row.nome ||
-                  'Não informado'
+                  formatCPF(
+                    row.cpf
+                  )
                 )}
-              </strong>
+              </td>
 
-            </td>
 
-            <td>
-              ${escapeHTML(
-                formatCPF(
-                  row.cpf
-                )
-              )}
-            </td>
+              <td>
+                ${escapeHTML(
+                  row.bpo
+                )}
+              </td>
 
-            <td>
-              ${escapeHTML(
-                row.bpo
-              )}
-            </td>
 
-            <td>
-              ${escapeHTML(
-                row.operacao
-              )}
-            </td>
+              <td>
+                ${escapeHTML(
+                  row.operacao
+                )}
+              </td>
 
-            <td>
 
-              ${
-                isValid
+              <td>
 
-                ? `
-                  <span class="status-pill success">
-                    Válido
-                  </span>
-                `
+                ${
+                  isValid
 
-                : `
-                  <span
-                    class="status-pill error"
-                    title="${escapeHTML(
-                      errors.join(', ')
-                    )}"
-                  >
-                    Incompleto
-                  </span>
-                `
-              }
+                  ? `
 
-            </td>
+                    <span class="status-pill success">
+                      Válido
+                    </span>
 
-          </tr>
+                  `
 
-        `;
+                  : `
 
-      }
-    )
-    .join('');
+                    <span
+                      class="status-pill error"
+                      title="${escapeHTML(
+                        errors.join(', ')
+                      )}"
+                    >
+                      Incompleto
+                    </span>
+
+                  `
+                }
+
+              </td>
+
+            </tr>
+
+          `;
+
+        }
+      )
+      .join('');
 
 
   preview.innerHTML = `
 
     <div class="import-summary">
+
 
       <div>
 
@@ -2538,6 +2694,7 @@ function renderImportPreview() {
 
       </div>
 
+
     </div>
 
 
@@ -2549,7 +2706,8 @@ function renderImportPreview() {
 
       <strong>
         ${escapeHTML(
-          selectedImportFile?.name
+          selectedImportFile
+            ?.name
           ||
           ''
         )}
@@ -2594,6 +2752,7 @@ function renderImportPreview() {
 
         </thead>
 
+
         <tbody>
           ${rowsHTML}
         </tbody>
@@ -2634,7 +2793,7 @@ function renderImportPreview() {
 
 
 // ============================================================
-// RESET
+// RESET IMPORTAÇÃO
 // ============================================================
 
 function resetImport() {
@@ -2642,38 +2801,51 @@ function resetImport() {
   importRows =
     [];
 
+
   selectedImportFile =
     null;
 
 
-  document
-    .getElementById(
+  const input =
+    document.getElementById(
       'employeeFileInput'
-    )
-    .value =
+    );
+
+
+  const preview =
+    document.getElementById(
+      'importPreview'
+    );
+
+
+  const upload =
+    document.getElementById(
+      'importStepUpload'
+    );
+
+
+  if (input) {
+
+    input.value =
       '';
 
+  }
 
-  document
-    .getElementById(
-      'importPreview'
-    )
-    .classList
+
+  preview
+    ?.classList
     .add('hidden');
 
 
-  document
-    .getElementById(
-      'importStepUpload'
-    )
-    .classList
+  upload
+    ?.classList
     .remove('hidden');
 
 }
 
 
 // ============================================================
-// IMPORTAR
+// CONFIRMAR IMPORTAÇÃO
 // ============================================================
 
 async function confirmEmployeeImport() {
@@ -2685,12 +2857,13 @@ async function confirmEmployeeImport() {
 
 
   const validRows =
-    importRows.filter(
-      row =>
-        validateImportRow(
-          row
-        ).length === 0
-    );
+    importRows
+      .filter(
+        row =>
+          validateImportRow(
+            row
+          ).length === 0
+      );
 
 
   if (
@@ -2706,12 +2879,16 @@ async function confirmEmployeeImport() {
   }
 
 
-  button.disabled =
-    true;
+  if (button) {
+
+    button.disabled =
+      true;
 
 
-  button.textContent =
-    'Importando...';
+    button.textContent =
+      'Importando...';
+
+  }
 
 
   try {
@@ -2742,7 +2919,13 @@ async function confirmEmployeeImport() {
 
 
     if (error) {
+
+      console.error(
+        error
+      );
+
       throw error;
+
     }
 
 
@@ -2752,7 +2935,8 @@ async function confirmEmployeeImport() {
     ) {
 
       throw new Error(
-        data?.error ||
+        data?.error
+        ||
         'A importação não foi concluída.'
       );
 
@@ -2768,22 +2952,28 @@ async function confirmEmployeeImport() {
   catch (error) {
 
     console.error(
+      'Erro de importação:',
       error
     );
 
 
     alert(
-      error.message ||
+      error.message
+      ||
       'Erro ao importar colaboradores.'
     );
 
 
-    button.disabled =
-      false;
+    if (button) {
+
+      button.disabled =
+        false;
 
 
-    button.textContent =
-      'Confirmar importação';
+      button.textContent =
+        'Confirmar importação';
+
+    }
 
   }
 
@@ -2794,14 +2984,19 @@ async function confirmEmployeeImport() {
 // RESULTADO DA IMPORTAÇÃO
 // ============================================================
 
-function renderImportResult(
-  result
-) {
+function renderImportResult(result) {
 
   const preview =
     document.getElementById(
       'importPreview'
     );
+
+
+  if (!preview) {
+
+    return;
+
+  }
 
 
   const errorRows =
@@ -2821,6 +3016,7 @@ function renderImportResult(
 
     <div class="import-result">
 
+
       <div
         class="result-icon
         ${
@@ -2829,11 +3025,13 @@ function renderImportResult(
             : 'success'
         }"
       >
+
         ${
           result.errors > 0
             ? '!'
             : '✓'
         }
+
       </div>
 
 
@@ -2843,6 +3041,7 @@ function renderImportResult(
 
 
       <div class="result-stats">
+
 
         <div>
 
@@ -2869,6 +3068,7 @@ function renderImportResult(
 
         </div>
 
+
       </div>
 
 
@@ -2883,35 +3083,37 @@ function renderImportResult(
               Registros não importados
             </strong>
 
+
             ${
-              errorRows.map(
-                item => `
+              errorRows
+                .map(
+                  item => `
 
-                  <div class="import-error-row">
+                    <div class="import-error-row">
 
-                    <span>
-                      Linha
-                      ${item.row}
-                    </span>
+                      <span>
+                        Linha ${item.row}
+                      </span>
 
-                    <strong>
-                      ${escapeHTML(
-                        item.name ||
-                        'Sem nome'
-                      )}
-                    </strong>
+                      <strong>
+                        ${escapeHTML(
+                          item.name
+                          ||
+                          'Sem nome'
+                        )}
+                      </strong>
 
-                    <p>
-                      ${escapeHTML(
-                        item.error
-                      )}
-                    </p>
+                      <p>
+                        ${escapeHTML(
+                          item.error
+                        )}
+                      </p>
 
-                  </div>
+                    </div>
 
-                `
-              )
-              .join('')
+                  `
+                )
+                .join('')
             }
 
           </div>
@@ -2944,15 +3146,14 @@ async function finishImport() {
 
   closeImportModal();
 
-  await loadNewEmployeesPage();
 
-  await loadDashboardCountsSilently();
+  await loadNewEmployeesPage();
 
 }
 
 
 // ============================================================
-// CARREGAR AGUARDANDO INÍCIO
+// CARREGAR COLABORADORES AGUARDANDO
 // ============================================================
 
 async function loadWaitingEmployees() {
@@ -2964,7 +3165,9 @@ async function loadWaitingEmployees() {
 
 
   if (!container) {
+
     return;
+
   }
 
 
@@ -3000,7 +3203,7 @@ async function loadWaitingEmployees() {
           name
         ),
 
-        profiles:leader_id (
+        leader:profiles!employments_leader_id_fkey (
           id,
           full_name
         )
@@ -3012,13 +3215,17 @@ async function loadWaitingEmployees() {
       .order(
         'admission_date',
         {
-          ascending:
-            false
+          ascending: false
         }
       );
 
 
   if (error) {
+
+    console.error(
+      error
+    );
+
 
     container.innerHTML = `
 
@@ -3033,6 +3240,7 @@ async function loadWaitingEmployees() {
       </div>
 
     `;
+
 
     return;
 
@@ -3063,6 +3271,7 @@ async function loadWaitingEmployees() {
       </div>
 
     `;
+
 
     return;
 
@@ -3119,110 +3328,121 @@ async function loadWaitingEmployees() {
         <tbody>
 
           ${
-            data.map(
-              item => `
+            data
+              .map(
+                item => `
 
-                <tr>
+                  <tr>
 
-                  <td>
 
-                    <strong>
+                    <td>
+
+                      <strong>
+                        ${escapeHTML(
+                          item.people
+                            ?.full_name
+                          ||
+                          ''
+                        )}
+                      </strong>
+
+                      <span class="table-subtext">
+                        ${escapeHTML(
+                          item.people
+                            ?.email
+                          ||
+                          ''
+                        )}
+                      </span>
+
+                    </td>
+
+
+                    <td>
                       ${escapeHTML(
-                        item.people
-                          ?.full_name
-                        ||
-                        ''
-                      )}
-                    </strong>
-
-                    <span class="table-subtext">
-                      ${escapeHTML(
-                        item.people
-                          ?.email
-                        ||
-                        ''
-                      )}
-                    </span>
-
-                  </td>
-
-
-                  <td>
-                    ${formatCPF(
-                      item.people
-                        ?.cpf
-                    )}
-                  </td>
-
-
-                  <td>
-                    ${escapeHTML(
-                      item.bpos
-                        ?.name
-                      ||
-                      '-'
-                    )}
-                  </td>
-
-
-                  <td>
-                    ${escapeHTML(
-                      item.operations
-                        ?.name
-                      ||
-                      '-'
-                    )}
-                  </td>
-
-
-                  <td>
-                    ${formatDateBR(
-                      item.admission_date
-                    )}
-                  </td>
-
-
-                  <td>
-                    ${escapeHTML(
-                      item.work_schedule
-                    )}
-                  </td>
-
-
-                  <td>
-
-                    ${
-                      item.profiles
-                        ?.full_name
-
-                      ? escapeHTML(
-                          item.profiles
-                            .full_name
+                        formatCPF(
+                          item.people
+                            ?.cpf
                         )
+                      )}
+                    </td>
 
-                      : `
+
+                    <td>
+                      ${escapeHTML(
+                        item.bpos
+                          ?.name
+                        ||
+                        '-'
+                      )}
+                    </td>
+
+
+                    <td>
+                      ${escapeHTML(
+                        item.operations
+                          ?.name
+                        ||
+                        '-'
+                      )}
+                    </td>
+
+
+                    <td>
+                      ${escapeHTML(
+                        formatDateBR(
+                          item.admission_date
+                        )
+                      )}
+                    </td>
+
+
+                    <td>
+                      ${escapeHTML(
+                        item.work_schedule
+                        ||
+                        '-'
+                      )}
+                    </td>
+
+
+                    <td>
+
+                      ${
+                        item.leader
+                          ?.full_name
+
+                        ? escapeHTML(
+                            item.leader
+                              .full_name
+                          )
+
+                        : `
+
                           <span class="status-pill warning">
                             Não definido
                           </span>
+
                         `
-                    }
+                      }
 
-                  </td>
+                    </td>
 
 
-                  <td>
+                    <td>
 
-                    <span class="status-pill waiting">
-                      Aguardando início
-                    </span>
+                      <span class="status-pill waiting">
+                        Aguardando início
+                      </span>
 
-                  </td>
+                    </td>
 
-                </tr>
 
-              `
-            )
-            .join('')
+                  </tr>
+
+                `
+              )
+              .join('')
           }
 
         </tbody>
@@ -3240,12 +3460,62 @@ async function loadWaitingEmployees() {
 // HELPERS
 // ============================================================
 
-function formatCPF(
-  cpf
-) {
+function showPageLoading() {
+
+  pageContent.innerHTML = `
+
+    <div class="page-loading">
+      Carregando...
+    </div>
+
+  `;
+
+}
+
+
+function escapeHTML(value) {
+
+  if (
+    value === null ||
+    value === undefined
+  ) {
+
+    return '';
+
+  }
+
+
+  return String(value)
+    .replace(
+      /&/g,
+      '&amp;'
+    )
+    .replace(
+      /</g,
+      '&lt;'
+    )
+    .replace(
+      />/g,
+      '&gt;'
+    )
+    .replace(
+      /"/g,
+      '&quot;'
+    )
+    .replace(
+      /'/g,
+      '&#039;'
+    );
+
+}
+
+
+function formatCPF(cpf) {
 
   const value =
-    String(cpf || '')
+    String(
+      cpf || ''
+    )
       .replace(
         /\D/g,
         ''
@@ -3255,7 +3525,9 @@ function formatCPF(
   if (
     value.length !== 11
   ) {
+
     return value;
+
   }
 
 
@@ -3267,23 +3539,26 @@ function formatCPF(
 }
 
 
-function formatDateBR(
-  value
-) {
+function formatDateBR(value) {
 
   if (!value) {
+
     return '-';
+
   }
 
 
   const parts =
-    value.split('-');
+    String(value)
+      .split('-');
 
 
   if (
     parts.length !== 3
   ) {
+
     return value;
+
   }
 
 
@@ -3302,10 +3577,8 @@ function formatDateBR(
 }
 
 
-async function loadDashboardCountsSilently() {
-
-  // usado apenas para futura atualização
-  // automática dos cards
-}
+// ============================================================
+// START
+// ============================================================
 
 initializeApp();
