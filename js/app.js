@@ -9,6 +9,19 @@ let currentProfile = null;
 let importRows = [];
 let selectedImportFile = null;
 
+let regionalsCache = [];
+let regionalCurrentPage = 1;
+
+let operationsCache = [];
+let operationRegionalsCache = [];
+let operationCurrentPage = 1;
+
+let corporateUsersCache = [];
+let corporateOperationsCache = [];
+let corporateCurrentPage = 1;
+
+const SETTINGS_PAGE_SIZE = 10;
+
 
 // ============================================================
 // ELEMENTOS PRINCIPAIS
@@ -75,10 +88,6 @@ async function initializeApp() {
       sessionData.session.user;
 
 
-    // ========================================================
-    // BUSCAR PERFIL
-    // ========================================================
-
     const {
       data: profile,
       error
@@ -124,7 +133,6 @@ async function initializeApp() {
       window.location.href =
         'index.html';
 
-
       return;
 
     }
@@ -136,9 +144,7 @@ async function initializeApp() {
 
     sessionStorage.setItem(
       'journey-profile',
-      JSON.stringify(
-        profile
-      )
+      JSON.stringify(profile)
     );
 
 
@@ -173,8 +179,9 @@ async function initializeApp() {
         </p>
 
         <button
-          class="primary-button small-button"
-          onclick="location.reload()"
+          id="reloadAppButton"
+          class="primary-action-button"
+          type="button"
         >
           Tentar novamente
         </button>
@@ -182,6 +189,16 @@ async function initializeApp() {
       </div>
 
     `;
+
+
+    document
+      .getElementById(
+        'reloadAppButton'
+      )
+      ?.addEventListener(
+        'click',
+        () => location.reload()
+      );
 
   }
 
@@ -198,7 +215,6 @@ function applyRolePermissions() {
     currentProfile.role;
 
 
-  // Recursos exclusivamente administrativos
   document
     .querySelectorAll(
       '.admin-only'
@@ -215,8 +231,6 @@ function applyRolePermissions() {
     );
 
 
-  // Recursos gerenciais:
-  // ADM/RH + Gestor RH
   document
     .querySelectorAll(
       '.management-view'
@@ -237,6 +251,7 @@ function applyRolePermissions() {
     );
 
 }
+
 
 // ============================================================
 // USUÁRIO
@@ -278,12 +293,11 @@ function renderUser() {
 
 }
 
+
 function getInitials(name) {
 
   if (!name) {
-
     return 'U';
-
   }
 
 
@@ -328,26 +342,29 @@ async function loadDashboard() {
 
 
   pageSubtitle.textContent =
-    currentProfile.role ===
-    'ADMIN_RH'
-      ? 'Acompanhe os novos colaboradores e as jornadas em andamento.'
+    (
+      currentProfile.role === 'ADMIN_RH'
+      ||
+      currentProfile.role === 'HR_MANAGER'
+    )
+      ? 'Acompanhe as jornadas dos novos colaboradores.'
       : 'Acompanhe sua jornada e suas avaliações.';
 
 
   showPageLoading();
 
 
- if (
-  currentProfile.role === 'ADMIN_RH'
-  ||
-  currentProfile.role === 'HR_MANAGER'
-) {
+  if (
+    currentProfile.role === 'ADMIN_RH'
+    ||
+    currentProfile.role === 'HR_MANAGER'
+  ) {
 
-  await loadAdminDashboard();
+    await loadAdminDashboard();
 
-  return;
+    return;
 
-}
+  }
 
 
   if (
@@ -368,7 +385,7 @@ async function loadDashboard() {
 
 
 // ============================================================
-// DASHBOARD ADM/RH
+// DASHBOARD ADM / GESTOR RH
 // ============================================================
 
 async function loadAdminDashboard() {
@@ -397,7 +414,6 @@ async function loadAdminDashboard() {
             'WAITING'
           ),
 
-
         journeySupabase
           .from('employments')
           .select(
@@ -411,7 +427,6 @@ async function loadAdminDashboard() {
             'status',
             'IN_JOURNEY'
           ),
-
 
         journeySupabase
           .from('employments')
@@ -427,7 +442,6 @@ async function loadAdminDashboard() {
             'COMPLETED'
           ),
 
-
         journeySupabase
           .from('people')
           .select(
@@ -441,20 +455,22 @@ async function loadAdminDashboard() {
       ]);
 
 
-    const waiting =
-      waitingResult.count || 0;
+    const resultError =
+      [
+        waitingResult,
+        journeyResult,
+        completedResult,
+        peopleResult
+      ]
+        .find(
+          result => result.error
+        )
+        ?.error;
 
 
-    const inJourney =
-      journeyResult.count || 0;
-
-
-    const completed =
-      completedResult.count || 0;
-
-
-    const totalPeople =
-      peopleResult.count || 0;
+    if (resultError) {
+      throw resultError;
+    }
 
 
     const pendingInfo =
@@ -462,12 +478,22 @@ async function loadAdminDashboard() {
 
 
     renderAdminDashboard({
-      waiting,
-      inJourney,
-      completed,
-      totalPeople,
+
+      waiting:
+        waitingResult.count || 0,
+
+      inJourney:
+        journeyResult.count || 0,
+
+      completed:
+        completedResult.count || 0,
+
+      totalPeople:
+        peopleResult.count || 0,
+
       pending:
         pendingInfo.total
+
     });
 
 
@@ -506,16 +532,17 @@ async function loadAdminDashboard() {
 }
 
 
-// ============================================================
-// RENDER DASHBOARD ADM/RH
-// ============================================================
-
 function renderAdminDashboard(data) {
 
   const firstName =
     currentProfile
       .full_name
       .split(' ')[0];
+
+
+  const isAdmin =
+    currentProfile.role ===
+    'ADMIN_RH';
 
 
   pageContent.innerHTML = `
@@ -570,7 +597,12 @@ function renderAdminDashboard(data) {
 
         <button
           class="metric-card"
-          onclick="openPage('new-employees')"
+          type="button"
+          data-open-page="${
+            isAdmin
+              ? 'new-employees'
+              : 'journeys'
+          }"
         >
 
           <div class="metric-card-top">
@@ -598,7 +630,8 @@ function renderAdminDashboard(data) {
 
         <button
           class="metric-card"
-          onclick="openPage('journeys')"
+          type="button"
+          data-open-page="journeys"
         >
 
           <div class="metric-card-top">
@@ -626,7 +659,8 @@ function renderAdminDashboard(data) {
 
         <button
           class="metric-card"
-          onclick="openPage('pending')"
+          type="button"
+          data-open-page="pending"
         >
 
           <div class="metric-card-top">
@@ -654,7 +688,8 @@ function renderAdminDashboard(data) {
 
         <button
           class="metric-card"
-          onclick="openPage('journeys')"
+          type="button"
+          data-open-page="journeys"
         >
 
           <div class="metric-card-top">
@@ -705,7 +740,8 @@ function renderAdminDashboard(data) {
 
           <button
             class="text-button"
-            onclick="openPage('pending')"
+            type="button"
+            data-open-page="pending"
           >
             Ver todas
           </button>
@@ -796,7 +832,6 @@ function renderAdminDashboard(data) {
 
         <div class="base-summary">
 
-
           <div>
 
             <span>
@@ -838,12 +873,23 @@ function renderAdminDashboard(data) {
         </div>
 
 
-        <button
-          class="secondary-button full-button"
-          onclick="openPage('new-employees')"
-        >
-          + Importar novos colaboradores
-        </button>
+        ${
+          isAdmin
+
+          ? `
+
+            <button
+              class="secondary-button full-button"
+              type="button"
+              data-open-page="new-employees"
+            >
+              + Importar novos colaboradores
+            </button>
+
+          `
+
+          : ''
+        }
 
       </section>
 
@@ -855,116 +901,161 @@ function renderAdminDashboard(data) {
 
 
 // ============================================================
+// EVENTOS DINÂMICOS GERAIS
+// ============================================================
+
+pageContent
+  .addEventListener(
+    'click',
+    event => {
+
+      const openPageButton =
+        event.target.closest(
+          '[data-open-page]'
+        );
+
+
+      if (openPageButton) {
+
+        openPage(
+          openPageButton
+            .dataset
+            .openPage
+        );
+
+      }
+
+    }
+  );
+
+
+// ============================================================
 // PENDÊNCIAS
 // ============================================================
 
 async function calculatePendingAssessments() {
 
-  const now =
-    new Date()
-      .toISOString();
+  try {
+
+    const now =
+      new Date()
+        .toISOString();
 
 
-  const {
-    data: checkpoints,
-    error
-  } =
-    await journeySupabase
-      .from(
-        'journey_checkpoints'
-      )
-      .select(`
-        id,
-        checkpoint,
-        opens_at,
-        due_at,
-        journey_id
-      `)
-      .lte(
-        'due_at',
-        now
-      );
+    const {
+      data: checkpoints,
+      error
+    } =
+      await journeySupabase
+        .from(
+          'journey_checkpoints'
+        )
+        .select(`
+          id,
+          checkpoint,
+          opens_at,
+          due_at,
+          journey_id
+        `)
+        .lte(
+          'due_at',
+          now
+        );
 
 
-  if (error) {
+    if (error) {
+      throw error;
+    }
 
-    throw error;
+
+    if (
+      !checkpoints ||
+      checkpoints.length === 0
+    ) {
+
+      return {
+        total: 0
+      };
+
+    }
+
+
+    let pendingCount = 0;
+
+
+    for (
+      const checkpoint
+      of checkpoints
+    ) {
+
+      const {
+        count,
+        error: submissionError
+      } =
+        await journeySupabase
+          .from(
+            'assessment_submissions'
+          )
+          .select(
+            'id',
+            {
+              count: 'exact',
+              head: true
+            }
+          )
+          .eq(
+            'checkpoint_id',
+            checkpoint.id
+          )
+          .eq(
+            'status',
+            'SUBMITTED'
+          );
+
+
+      if (submissionError) {
+
+        console.warn(
+          submissionError
+        );
+
+        continue;
+
+      }
+
+
+      if (
+        (count || 0) < 2
+      ) {
+
+        pendingCount +=
+          2 - (count || 0);
+
+      }
+
+    }
+
+
+    return {
+      total:
+        pendingCount
+    };
 
   }
 
+  catch (error) {
 
-  if (
-    !checkpoints ||
-    checkpoints.length === 0
-  ) {
+    console.warn(
+      'Não foi possível calcular pendências:',
+      error
+    );
+
 
     return {
       total: 0
     };
 
   }
-
-
-  let pendingCount = 0;
-
-
-  for (
-    const checkpoint
-    of checkpoints
-  ) {
-
-    const {
-      count,
-      error: submissionError
-    } =
-      await journeySupabase
-        .from(
-          'assessment_submissions'
-        )
-        .select(
-          'id',
-          {
-            count: 'exact',
-            head: true
-          }
-        )
-        .eq(
-          'checkpoint_id',
-          checkpoint.id
-        )
-        .eq(
-          'status',
-          'SUBMITTED'
-        );
-
-
-    if (submissionError) {
-
-      console.warn(
-        submissionError
-      );
-
-      continue;
-
-    }
-
-
-    if (
-      (count || 0) < 2
-    ) {
-
-      pendingCount +=
-        2 - (count || 0);
-
-    }
-
-  }
-
-
-  return {
-    total:
-      pendingCount
-  };
 
 }
 
@@ -997,7 +1088,7 @@ async function loadLeaderDashboard() {
 
         <p>
           Aqui você acompanhará os novos colaboradores
-          sob sua responsabilidade.
+          das operações vinculadas a você.
         </p>
 
       </div>
@@ -1016,8 +1107,8 @@ async function loadLeaderDashboard() {
       </strong>
 
       <p>
-        O painel da liderança será carregado
-        com os colaboradores vinculados a este usuário.
+        Em breve esta área mostrará Todos da Operação,
+        A Identificar e Meus Colaboradores.
       </p>
 
     </div>
@@ -1054,7 +1145,8 @@ async function loadEmployeeDashboard() {
         </h2>
 
         <p>
-          Acompanhe aqui sua jornada de integração.
+          Acompanhe aqui sua jornada
+          de integração.
         </p>
 
       </div>
@@ -1164,7 +1256,7 @@ async function openPage(page) {
 
       renderComingSoon(
         'Gestão de Jornadas',
-        'Aqui ficarão todos os colaboradores atualmente em acompanhamento.'
+        'Aqui ficarão os colaboradores atualmente em acompanhamento.'
       );
 
       break;
@@ -1200,7 +1292,7 @@ async function openPage(page) {
 
       renderComingSoon(
         'Central de Pendências',
-        'Aqui você verá exatamente quem precisa ser cobrado e qual avaliação está pendente.'
+        'Aqui você verá quem precisa responder e qual avaliação está pendente.'
       );
 
       break;
@@ -1218,7 +1310,7 @@ async function openPage(page) {
 
       renderComingSoon(
         'Indicadores',
-        'Aqui entraremos com aderência, evolução, BPO, operação, turma e liderança.'
+        'Aqui teremos análises por Regional, Operação, BPO, liderança e período.'
       );
 
       break;
@@ -1226,15 +1318,29 @@ async function openPage(page) {
 
     case 'settings':
 
-  pageTitle.textContent =
-    'Configurações';
+      if (
+        currentProfile.role !==
+        'ADMIN_RH'
+      ) {
 
-  pageSubtitle.textContent =
-    'Estrutura e acessos do Shopee Journey.';
+        await loadDashboard();
 
-  await loadSettingsHome();
+        return;
 
-  break;
+      }
+
+
+      pageTitle.textContent =
+        'Configurações';
+
+
+      pageSubtitle.textContent =
+        'Estrutura e acessos do Shopee Journey.';
+
+
+      await loadSettingsHome();
+
+      break;
 
   }
 
@@ -1317,9 +1423,7 @@ function updatePendingBadge(number) {
 
 
   if (!badge) {
-
     return;
-
   }
 
 
@@ -1399,7 +1503,7 @@ async function loadTheme() {
     catch (error) {
 
       console.warn(
-        'Não foi possível buscar tema no banco.',
+        'Tema será mantido localmente.',
         error
       );
 
@@ -1469,6 +1573,7 @@ themeToggleApp
               'user_preferences'
             )
             .upsert({
+
               user_id:
                 currentProfile.id,
 
@@ -1478,6 +1583,7 @@ themeToggleApp
               updated_at:
                 new Date()
                   .toISOString()
+
             });
 
 
@@ -1562,9 +1668,7 @@ async function loadNewEmployeesPage() {
     currentProfile.role !==
     'ADMIN_RH'
   ) {
-
     return;
-
   }
 
 
@@ -1589,16 +1693,18 @@ async function loadNewEmployeesPage() {
       <div class="module-actions">
 
         <button
+          id="downloadEmployeeTemplateButton"
           class="secondary-button"
-          onclick="downloadEmployeeTemplate()"
+          type="button"
         >
           ↓ Baixar modelo
         </button>
 
 
         <button
+          id="openImportModalButton"
           class="primary-action-button"
-          onclick="openImportModal()"
+          type="button"
         >
           + Importar planilha
         </button>
@@ -1663,8 +1769,8 @@ async function loadNewEmployeesPage() {
 
 
           <button
+            id="closeImportModalButton"
             class="modal-close"
-            onclick="closeImportModal()"
             type="button"
           >
             ×
@@ -1679,11 +1785,6 @@ async function loadNewEmployeesPage() {
           <div
             id="uploadArea"
             class="upload-area"
-            onclick="
-              document
-                .getElementById('employeeFileInput')
-                .click()
-            "
           >
 
             <div class="upload-icon">
@@ -1731,8 +1832,8 @@ async function loadNewEmployeesPage() {
 
 
             <button
+              id="downloadTemplateInsideModal"
               class="secondary-button"
-              onclick="downloadEmployeeTemplate()"
               type="button"
             >
               ↓ Baixar modelo
@@ -1756,20 +1857,72 @@ async function loadNewEmployeesPage() {
   `;
 
 
-  const fileInput =
-    document.getElementById(
-      'employeeFileInput'
+  document
+    .getElementById(
+      'downloadEmployeeTemplateButton'
+    )
+    ?.addEventListener(
+      'click',
+      downloadEmployeeTemplate
     );
 
 
-  if (fileInput) {
+  document
+    .getElementById(
+      'downloadTemplateInsideModal'
+    )
+    ?.addEventListener(
+      'click',
+      downloadEmployeeTemplate
+    );
 
-    fileInput.addEventListener(
+
+  document
+    .getElementById(
+      'openImportModalButton'
+    )
+    ?.addEventListener(
+      'click',
+      openImportModal
+    );
+
+
+  document
+    .getElementById(
+      'closeImportModalButton'
+    )
+    ?.addEventListener(
+      'click',
+      closeImportModal
+    );
+
+
+  document
+    .getElementById(
+      'uploadArea'
+    )
+    ?.addEventListener(
+      'click',
+      () => {
+
+        document
+          .getElementById(
+            'employeeFileInput'
+          )
+          ?.click();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'employeeFileInput'
+    )
+    ?.addEventListener(
       'change',
       handleEmployeeFile
     );
-
-  }
 
 
   await loadWaitingEmployees();
@@ -1778,7 +1931,7 @@ async function loadNewEmployeesPage() {
 
 
 // ============================================================
-// BAIXAR MODELO DE IMPORTAÇÃO
+// MODELO DE IMPORTAÇÃO
 // ============================================================
 
 function downloadEmployeeTemplate() {
@@ -1861,7 +2014,7 @@ function downloadEmployeeTemplate() {
 
     [
       'DATA DE NASCIMENTO',
-      'Obrigatório. Utilizar o formato DD/MM/AAAA.'
+      'Obrigatório. Preferencialmente DD/MM/AAAA.'
     ],
 
     [
@@ -1871,12 +2024,12 @@ function downloadEmployeeTemplate() {
 
     [
       'DATA DE ADMISSÃO',
-      'Obrigatório. Utilizar o formato DD/MM/AAAA.'
+      'Obrigatório. Preferencialmente DD/MM/AAAA.'
     ],
 
     [
       'EMAIL',
-      'E-mail pessoal ou cadastral do colaborador.'
+      'E-mail cadastral do colaborador.'
     ],
 
     [
@@ -1886,7 +2039,7 @@ function downloadEmployeeTemplate() {
 
     [
       'HUB/OPERAÇÃO',
-      'Nome ou código da operação onde o colaborador atuará.'
+      'Utilize exatamente o código da Operação cadastrada no Journey.'
     ],
 
     [
@@ -1903,17 +2056,12 @@ function downloadEmployeeTemplate() {
 
     [
       'IMPORTANTE',
-      'O líder será vinculado posteriormente dentro do Shopee Journey.'
+      'A Operação precisa existir previamente no Shopee Journey.'
     ],
 
     [
       'IMPORTANTE',
-      'A importação não inicia automaticamente a jornada do colaborador.'
-    ],
-
-    [
-      'IMPORTANTE',
-      'Após a importação, o colaborador ficará com status AGUARDANDO INÍCIO.'
+      'A importação não inicia automaticamente a jornada.'
     ]
 
   ];
@@ -1960,7 +2108,7 @@ function downloadEmployeeTemplate() {
 
 
 // ============================================================
-// MODAL DE IMPORTAÇÃO
+// MODAL IMPORTAÇÃO
 // ============================================================
 
 function openImportModal() {
@@ -1973,41 +2121,26 @@ function openImportModal() {
     [];
 
 
-  const modal =
-    document.getElementById(
+  document
+    .getElementById(
       'importModal'
-    );
-
-
-  const upload =
-    document.getElementById(
-      'importStepUpload'
-    );
-
-
-  const preview =
-    document.getElementById(
-      'importPreview'
-    );
-
-
-  if (!modal) {
-
-    return;
-
-  }
-
-
-  modal.classList
-    .remove('hidden');
-
-
-  upload
+    )
     ?.classList
     .remove('hidden');
 
 
-  preview
+  document
+    .getElementById(
+      'importStepUpload'
+    )
+    ?.classList
+    .remove('hidden');
+
+
+  document
+    .getElementById(
+      'importPreview'
+    )
     ?.classList
     .add('hidden');
 
@@ -2027,7 +2160,7 @@ function closeImportModal() {
 
 
 // ============================================================
-// NORMALIZAR CABEÇALHO
+// NORMALIZAÇÃO DA PLANILHA
 // ============================================================
 
 function normalizeHeader(value) {
@@ -2043,15 +2176,11 @@ function normalizeHeader(value) {
     )
     .toUpperCase()
     .replace(
-      /[^A-Z0-9]/g,
+      /[^A-Z0-9]+/g,
       '_'
     )
     .replace(
-      /_+/g,
-      '_'
-    )
-    .replace(
-      /^_|_$/g,
+      /^_+|_+$/g,
       ''
     );
 
@@ -2059,17 +2188,7 @@ function normalizeHeader(value) {
 
 
 // ============================================================
-// CONVERTER DATA
-// ============================================================
-
-// ============================================================
-// CONVERTER DATA PARA YYYY-MM-DD
-// Aceita:
-// - Data serial do Excel
-// - Objeto Date
-// - DD/MM/YYYY
-// - MM/DD/YYYY
-// - YYYY-MM-DD
+// CONVERSÃO DE DATA
 // ============================================================
 
 function excelDateToISO(value) {
@@ -2079,16 +2198,15 @@ function excelDateToISO(value) {
     value === undefined ||
     value === ''
   ) {
+
     return '';
+
   }
 
 
-  // ==========================================================
-  // 1. DATA SERIAL DO EXCEL
-  // ==========================================================
-
   if (
-    typeof value === 'number'
+    typeof value ===
+    'number'
   ) {
 
     const parsed =
@@ -2111,12 +2229,9 @@ function excelDateToISO(value) {
   }
 
 
-  // ==========================================================
-  // 2. OBJETO DATE
-  // ==========================================================
-
   if (
-    value instanceof Date &&
+    value instanceof Date
+    &&
     !Number.isNaN(
       value.getTime()
     )
@@ -2141,16 +2256,11 @@ function excelDateToISO(value) {
   }
 
 
-  // Remove hora caso venha junto
   text =
-    text.split(' ')[0]
+    text
+      .split(' ')[0]
       .split('T')[0];
 
-
-  // ==========================================================
-  // 3. FORMATO ISO
-  // YYYY-MM-DD
-  // ==========================================================
 
   const iso =
     text.match(
@@ -2168,28 +2278,6 @@ function excelDateToISO(value) {
 
   }
 
-
-  // ==========================================================
-  // 4. FORMATO COM /
-  // Pode ser:
-  //
-  // DD/MM/YYYY
-  // MM/DD/YYYY
-  //
-  // Regras:
-  //
-  // 14/05/1990
-  // Primeiro > 12
-  // => DD/MM
-  //
-  // 05/14/1990
-  // Segundo > 12
-  // => MM/DD
-  //
-  // 05/06/1990
-  // Ambíguo
-  // => assume padrão brasileiro DD/MM
-  // ==========================================================
 
   const slash =
     text.match(
@@ -2213,8 +2301,6 @@ function excelDateToISO(value) {
     let month;
 
 
-    // Exemplo:
-    // 14/05/1990
     if (first > 12) {
 
       day =
@@ -2225,8 +2311,6 @@ function excelDateToISO(value) {
 
     }
 
-    // Exemplo:
-    // 05/14/1990
     else if (second > 12) {
 
       month =
@@ -2237,9 +2321,6 @@ function excelDateToISO(value) {
 
     }
 
-    // Ambíguo:
-    // 05/06/1990
-    // Assume padrão brasileiro
     else {
 
       day =
@@ -2259,11 +2340,6 @@ function excelDateToISO(value) {
 
   }
 
-
-  // ==========================================================
-  // 5. FORMATO COM -
-  // DD-MM-YYYY
-  // ==========================================================
 
   const dash =
     text.match(
@@ -2286,10 +2362,6 @@ function excelDateToISO(value) {
 
 }
 
-
-// ============================================================
-// VALIDAR E CONSTRUIR DATA ISO
-// ============================================================
 
 function buildValidISODate(
   year,
@@ -2330,10 +2402,11 @@ function buildValidISODate(
     );
 
 
-  // Evita coisas como 31/02
   if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
+    date.getFullYear() !== year
+    ||
+    date.getMonth() !== month - 1
+    ||
     date.getDate() !== day
   ) {
     return '';
@@ -2362,6 +2435,7 @@ function buildValidISODate(
 
 }
 
+
 // ============================================================
 // LER PLANILHA
 // ============================================================
@@ -2375,9 +2449,7 @@ async function handleEmployeeFile(event) {
 
 
   if (!file) {
-
     return;
-
   }
 
 
@@ -2408,9 +2480,7 @@ async function handleEmployeeFile(event) {
 
     const sheet =
       workbook
-        .Sheets[
-          firstSheet
-        ];
+        .Sheets[firstSheet];
 
 
     const rawRows =
@@ -2463,7 +2533,7 @@ async function handleEmployeeFile(event) {
 
 
 // ============================================================
-// MAPEAR LINHA DA PLANILHA
+// MAPEAR PLANILHA
 // ============================================================
 
 function mapSpreadsheetRow(original) {
@@ -2473,15 +2543,11 @@ function mapSpreadsheetRow(original) {
 
   for (
     const [key, value]
-    of Object.entries(
-      original
-    )
+    of Object.entries(original)
   ) {
 
     normalized[
-      normalizeHeader(
-        key
-      )
+      normalizeHeader(key)
     ] =
       value;
 
@@ -2599,7 +2665,7 @@ function mapSpreadsheetRow(original) {
 
 
 // ============================================================
-// VALIDAR LINHA
+// VALIDAR IMPORTAÇÃO
 // ============================================================
 
 function validateImportRow(row) {
@@ -2608,11 +2674,7 @@ function validateImportRow(row) {
 
 
   if (!row.nome) {
-
-    errors.push(
-      'Nome'
-    );
-
+    errors.push('Nome');
   }
 
 
@@ -2620,80 +2682,42 @@ function validateImportRow(row) {
     !row.cpf ||
     row.cpf.length !== 11
   ) {
-
-    errors.push(
-      'CPF'
-    );
-
+    errors.push('CPF');
   }
 
 
-  if (
-    !row.data_nascimento
-  ) {
-
-    errors.push(
-      'Nascimento'
-    );
-
+  if (!row.data_nascimento) {
+    errors.push('Nascimento');
   }
 
 
   if (!row.bpo) {
-
-    errors.push(
-      'BPO'
-    );
-
+    errors.push('BPO');
   }
 
 
-  if (
-    !row.data_admissao
-  ) {
-
-    errors.push(
-      'Admissão'
-    );
-
+  if (!row.data_admissao) {
+    errors.push('Admissão');
   }
 
 
   if (!row.email) {
-
-    errors.push(
-      'E-mail'
-    );
-
+    errors.push('E-mail');
   }
 
 
   if (!row.telefone) {
-
-    errors.push(
-      'Telefone'
-    );
-
+    errors.push('Telefone');
   }
 
 
   if (!row.operacao) {
-
-    errors.push(
-      'Operação'
-    );
-
+    errors.push('Operação');
   }
 
 
-  if (
-    !row.horario_escala
-  ) {
-
-    errors.push(
-      'Horário/Escala'
-    );
-
+  if (!row.horario_escala) {
+    errors.push('Horário/Escala');
   }
 
 
@@ -2724,9 +2748,7 @@ function renderImportPreview() {
     !preview ||
     !uploadStep
   ) {
-
     return;
-
   }
 
 
@@ -2740,12 +2762,8 @@ function renderImportPreview() {
     .remove('hidden');
 
 
-  let valid =
-    0;
-
-
-  let invalid =
-    0;
+  let valid = 0;
+  let invalid = 0;
 
 
   const rowsHTML =
@@ -2754,9 +2772,7 @@ function renderImportPreview() {
         (row, index) => {
 
           const errors =
-            validateImportRow(
-              row
-            );
+            validateImportRow(row);
 
 
           const isValid =
@@ -2764,15 +2780,11 @@ function renderImportPreview() {
 
 
           if (isValid) {
-
             valid++;
-
           }
 
           else {
-
             invalid++;
-
           }
 
 
@@ -2784,42 +2796,28 @@ function renderImportPreview() {
                 ${index + 2}
               </td>
 
-
               <td>
-
                 <strong>
                   ${escapeHTML(
-                    row.nome
-                    ||
+                    row.nome ||
                     'Não informado'
                   )}
                 </strong>
-
               </td>
-
 
               <td>
                 ${escapeHTML(
-                  formatCPF(
-                    row.cpf
-                  )
+                  formatCPF(row.cpf)
                 )}
               </td>
-
 
               <td>
-                ${escapeHTML(
-                  row.bpo
-                )}
+                ${escapeHTML(row.bpo)}
               </td>
-
 
               <td>
-                ${escapeHTML(
-                  row.operacao
-                )}
+                ${escapeHTML(row.operacao)}
               </td>
-
 
               <td>
 
@@ -2827,15 +2825,12 @@ function renderImportPreview() {
                   isValid
 
                   ? `
-
                     <span class="status-pill success">
                       Válido
                     </span>
-
                   `
 
                   : `
-
                     <span
                       class="status-pill error"
                       title="${escapeHTML(
@@ -2844,7 +2839,6 @@ function renderImportPreview() {
                     >
                       Incompleto
                     </span>
-
                   `
                 }
 
@@ -2862,7 +2856,6 @@ function renderImportPreview() {
   preview.innerHTML = `
 
     <div class="import-summary">
-
 
       <div>
 
@@ -2902,7 +2895,6 @@ function renderImportPreview() {
 
       </div>
 
-
     </div>
 
 
@@ -2914,10 +2906,7 @@ function renderImportPreview() {
 
       <strong>
         ${escapeHTML(
-          selectedImportFile
-            ?.name
-          ||
-          ''
+          selectedImportFile?.name || ''
         )}
       </strong>
 
@@ -2931,31 +2920,12 @@ function renderImportPreview() {
         <thead>
 
           <tr>
-
-            <th>
-              Linha
-            </th>
-
-            <th>
-              Nome
-            </th>
-
-            <th>
-              CPF
-            </th>
-
-            <th>
-              BPO
-            </th>
-
-            <th>
-              HUB
-            </th>
-
-            <th>
-              Validação
-            </th>
-
+            <th>Linha</th>
+            <th>Nome</th>
+            <th>CPF</th>
+            <th>BPO</th>
+            <th>HUB</th>
+            <th>Validação</th>
           </tr>
 
         </thead>
@@ -2973,8 +2943,9 @@ function renderImportPreview() {
     <div class="import-actions">
 
       <button
+        id="resetImportButton"
         class="secondary-button"
-        onclick="resetImport()"
+        type="button"
       >
         Escolher outro arquivo
       </button>
@@ -2983,7 +2954,7 @@ function renderImportPreview() {
       <button
         id="confirmImportButton"
         class="primary-action-button"
-        onclick="confirmEmployeeImport()"
+        type="button"
         ${
           valid === 0
             ? 'disabled'
@@ -2997,6 +2968,26 @@ function renderImportPreview() {
 
   `;
 
+
+  document
+    .getElementById(
+      'resetImportButton'
+    )
+    ?.addEventListener(
+      'click',
+      resetImport
+    );
+
+
+  document
+    .getElementById(
+      'confirmImportButton'
+    )
+    ?.addEventListener(
+      'click',
+      confirmEmployeeImport
+    );
+
 }
 
 
@@ -3006,9 +2997,7 @@ function renderImportPreview() {
 
 function resetImport() {
 
-  importRows =
-    [];
-
+  importRows = [];
 
   selectedImportFile =
     null;
@@ -3020,32 +3009,23 @@ function resetImport() {
     );
 
 
-  const preview =
-    document.getElementById(
-      'importPreview'
-    );
-
-
-  const upload =
-    document.getElementById(
-      'importStepUpload'
-    );
-
-
   if (input) {
-
-    input.value =
-      '';
-
+    input.value = '';
   }
 
 
-  preview
+  document
+    .getElementById(
+      'importPreview'
+    )
     ?.classList
     .add('hidden');
 
 
-  upload
+  document
+    .getElementById(
+      'importStepUpload'
+    )
     ?.classList
     .remove('hidden');
 
@@ -3067,7 +3047,8 @@ async function confirmEmployeeImport() {
   const validRows =
     importRows.filter(
       row =>
-        validateImportRow(row).length === 0
+        validateImportRow(row)
+          .length === 0
     );
 
 
@@ -3084,7 +3065,8 @@ async function confirmEmployeeImport() {
 
   if (button) {
 
-    button.disabled = true;
+    button.disabled =
+      true;
 
     button.textContent =
       'Importando...';
@@ -3118,105 +3100,27 @@ async function confirmEmployeeImport() {
         );
 
 
-    // ========================================================
-    // ERRO DA EDGE FUNCTION
-    // ========================================================
-
     if (error) {
 
-      console.error(
-        'Erro bruto da Edge Function:',
-        error
-      );
-
-
-      let detailedMessage =
-        error.message
-        ||
-        'Erro ao chamar a função.';
-
-
-      // FunctionsHttpError costuma trazer
-      // o Response dentro de error.context
-      if (error.context) {
-
-        try {
-
-          const responseBody =
-            await error.context.clone().json();
-
-
-          console.error(
-            'Resposta da Edge Function:',
-            responseBody
-          );
-
-
-          detailedMessage =
-            responseBody?.error
-            ||
-            responseBody?.message
-            ||
-            detailedMessage;
-
-        }
-
-        catch (jsonError) {
-
-          try {
-
-            const responseText =
-              await error.context.clone().text();
-
-
-            if (responseText) {
-
-              detailedMessage =
-                responseText;
-
-            }
-
-          }
-
-          catch (_) {
-
-            // mantém a mensagem original
-
-          }
-
-        }
-
-      }
-
-
       throw new Error(
-        detailedMessage
+        await readEdgeFunctionError(
+          error,
+          'Erro ao importar colaboradores.'
+        )
       );
 
     }
 
 
-    console.log(
-      'Resposta da importação:',
-      data
-    );
-
-
-    if (!data) {
+    if (
+      !data ||
+      data.success !== true
+    ) {
 
       throw new Error(
-        'A Edge Function não retornou dados.'
-      );
-
-    }
-
-
-    if (data.success !== true) {
-
-      throw new Error(
-        data.error
+        data?.error
         ||
-        data.message
+        data?.message
         ||
         'A importação não foi concluída.'
       );
@@ -3233,7 +3137,7 @@ async function confirmEmployeeImport() {
   catch (error) {
 
     console.error(
-      'ERRO FINAL DA IMPORTAÇÃO:',
+      'Erro de importação:',
       error
     );
 
@@ -3250,7 +3154,6 @@ async function confirmEmployeeImport() {
       button.disabled =
         false;
 
-
       button.textContent =
         'Confirmar importação';
 
@@ -3259,6 +3162,7 @@ async function confirmEmployeeImport() {
   }
 
 }
+
 
 // ============================================================
 // RESULTADO DA IMPORTAÇÃO
@@ -3273,9 +3177,7 @@ function renderImportResult(result) {
 
 
   if (!preview) {
-
     return;
-
   }
 
 
@@ -3296,22 +3198,18 @@ function renderImportResult(result) {
 
     <div class="import-result">
 
-
       <div
-        class="result-icon
-        ${
+        class="result-icon ${
           result.errors > 0
             ? 'warning'
             : 'success'
         }"
       >
-
         ${
           result.errors > 0
             ? '!'
             : '✓'
         }
-
       </div>
 
 
@@ -3322,38 +3220,25 @@ function renderImportResult(result) {
 
       <div class="result-stats">
 
-
         <div>
-
-          <span>
-            Importados
-          </span>
-
+          <span>Importados</span>
           <strong>
             ${result.imported}
           </strong>
-
         </div>
 
-
         <div>
-
-          <span>
-            Erros
-          </span>
-
+          <span>Erros</span>
           <strong>
             ${result.errors}
           </strong>
-
         </div>
-
 
       </div>
 
 
       ${
-        errorRows.length > 0
+        errorRows.length
 
         ? `
 
@@ -3362,7 +3247,6 @@ function renderImportResult(result) {
             <strong>
               Registros não importados
             </strong>
-
 
             ${
               errorRows
@@ -3405,8 +3289,9 @@ function renderImportResult(result) {
 
 
       <button
+        id="finishImportButton"
         class="primary-action-button"
-        onclick="finishImport()"
+        type="button"
       >
         Concluir
       </button>
@@ -3415,17 +3300,22 @@ function renderImportResult(result) {
 
   `;
 
+
+  document
+    .getElementById(
+      'finishImportButton'
+    )
+    ?.addEventListener(
+      'click',
+      finishImport
+    );
+
 }
 
-
-// ============================================================
-// FINALIZAR IMPORTAÇÃO
-// ============================================================
 
 async function finishImport() {
 
   closeImportModal();
-
 
   await loadNewEmployeesPage();
 
@@ -3433,7 +3323,7 @@ async function finishImport() {
 
 
 // ============================================================
-// CARREGAR COLABORADORES AGUARDANDO
+// LISTAR COLABORADORES AGUARDANDO
 // ============================================================
 
 async function loadWaitingEmployees() {
@@ -3445,9 +3335,7 @@ async function loadWaitingEmployees() {
 
 
   if (!container) {
-
     return;
-
   }
 
 
@@ -3464,6 +3352,7 @@ async function loadWaitingEmployees() {
         admission_date,
         work_schedule,
         status,
+        leader_id,
 
         people (
           id,
@@ -3480,7 +3369,13 @@ async function loadWaitingEmployees() {
 
         operations (
           id,
-          name
+          name,
+          regional_id,
+
+          regionals (
+            id,
+            name
+          )
         ),
 
         leader:profiles!employments_leader_id_fkey (
@@ -3502,9 +3397,7 @@ async function loadWaitingEmployees() {
 
   if (error) {
 
-    console.error(
-      error
-    );
+    console.error(error);
 
 
     container.innerHTML = `
@@ -3520,7 +3413,6 @@ async function loadWaitingEmployees() {
       </div>
 
     `;
-
 
     return;
 
@@ -3552,7 +3444,6 @@ async function loadWaitingEmployees() {
 
     `;
 
-
     return;
 
   }
@@ -3567,39 +3458,15 @@ async function loadWaitingEmployees() {
         <thead>
 
           <tr>
-
-            <th>
-              Colaborador
-            </th>
-
-            <th>
-              CPF
-            </th>
-
-            <th>
-              BPO
-            </th>
-
-            <th>
-              HUB
-            </th>
-
-            <th>
-              Admissão
-            </th>
-
-            <th>
-              Horário / Escala
-            </th>
-
-            <th>
-              Liderança
-            </th>
-
-            <th>
-              Status
-            </th>
-
+            <th>Colaborador</th>
+            <th>CPF</th>
+            <th>Regional</th>
+            <th>Operação</th>
+            <th>BPO</th>
+            <th>Admissão</th>
+            <th>Horário / Escala</th>
+            <th>Status</th>
+            <th>Ações</th>
           </tr>
 
         </thead>
@@ -3613,7 +3480,6 @@ async function loadWaitingEmployees() {
                 item => `
 
                   <tr>
-
 
                     <td>
 
@@ -3641,16 +3507,30 @@ async function loadWaitingEmployees() {
                     <td>
                       ${escapeHTML(
                         formatCPF(
-                          item.people
-                            ?.cpf
+                          item.people?.cpf
                         )
                       )}
                     </td>
 
 
                     <td>
+
+                      ${
+                        escapeHTML(
+                          item.operations
+                            ?.regionals
+                            ?.name
+                          ||
+                          'Sem Regional'
+                        )
+                      }
+
+                    </td>
+
+
+                    <td>
                       ${escapeHTML(
-                        item.bpos
+                        item.operations
                           ?.name
                         ||
                         '-'
@@ -3660,7 +3540,7 @@ async function loadWaitingEmployees() {
 
                     <td>
                       ${escapeHTML(
-                        item.operations
+                        item.bpos
                           ?.name
                         ||
                         '-'
@@ -3688,35 +3568,27 @@ async function loadWaitingEmployees() {
 
                     <td>
 
-                      ${
-                        item.leader
-                          ?.full_name
-
-                        ? escapeHTML(
-                            item.leader
-                              .full_name
-                          )
-
-                        : `
-
-                          <span class="status-pill warning">
-                            Não definido
-                          </span>
-
-                        `
-                      }
-
-                    </td>
-
-
-                    <td>
-
                       <span class="status-pill waiting">
                         Aguardando início
                       </span>
 
                     </td>
 
+
+                    <td>
+
+                      <button
+                        class="danger-text-button delete-waiting-employee"
+                        type="button"
+                        data-employment-id="${item.id}"
+                        data-employee-name="${escapeHTML(
+                          item.people?.full_name || ''
+                        )}"
+                      >
+                        Excluir
+                      </button>
+
+                    </td>
 
                   </tr>
 
@@ -3733,815 +3605,60 @@ async function loadWaitingEmployees() {
 
   `;
 
-}
 
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-function showPageLoading() {
-
-  pageContent.innerHTML = `
-
-    <div class="page-loading">
-      Carregando...
-    </div>
-
-  `;
-
-}
-
-
-function escapeHTML(value) {
-
-  if (
-    value === null ||
-    value === undefined
-  ) {
-
-    return '';
-
-  }
-
-
-  return String(value)
-    .replace(
-      /&/g,
-      '&amp;'
+  container
+    .querySelectorAll(
+      '.delete-waiting-employee'
     )
-    .replace(
-      /</g,
-      '&lt;'
-    )
-    .replace(
-      />/g,
-      '&gt;'
-    )
-    .replace(
-      /"/g,
-      '&quot;'
-    )
-    .replace(
-      /'/g,
-      '&#039;'
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            deleteEmployee(
+              button.dataset.employmentId,
+              button.dataset.employeeName
+            );
+
+          }
+        );
+
+      }
     );
 
 }
 
 
-function formatCPF(cpf) {
-
-  const value =
-    String(
-      cpf || ''
-    )
-      .replace(
-        /\D/g,
-        ''
-      );
-
-
-  if (
-    value.length !== 11
-  ) {
-
-    return value;
-
-  }
-
-
-  return value.replace(
-    /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
-    '$1.$2.$3-$4'
-  );
-
-}
-
-
-function formatDateBR(value) {
-
-  if (!value) {
-
-    return '-';
-
-  }
-
-
-  const parts =
-    String(value)
-      .split('-');
-
-
-  if (
-    parts.length !== 3
-  ) {
-
-    return value;
-
-  }
-
-
-  return (
-    parts[2]
-    +
-    '/'
-    +
-    parts[1]
-    +
-    '/'
-    +
-    parts[0]
-  );
-
-}
-
-
 // ============================================================
-// START
+// EXCLUIR COLABORADOR
 // ============================================================
 
-// ============================================================
-// CONFIGURAÇÕES
-// ============================================================
-
-async function loadSettingsPage() {
+async function deleteEmployee(
+  employmentId,
+  employeeName
+) {
 
   if (
     currentProfile.role !==
     'ADMIN_RH'
   ) {
-
-    await loadDashboard();
-
     return;
-
   }
 
 
-  pageContent.innerHTML = `
-
-    <div class="module-header">
-
-      <div>
-
-        <h2>
-          Configurações
-        </h2>
-
-        <p>
-          Gerencie operações, lideranças
-          e acessos corporativos.
-        </p>
-
-      </div>
-
-    </div>
-
-
-    <div class="settings-grid">
-
-
-      <!-- ==================================================
-           OPERAÇÕES
-      =================================================== -->
-
-      <section class="dashboard-panel">
-
-        <div class="panel-header">
-
-          <div>
-
-            <h3>
-              Operações / HUBs
-            </h3>
-
-            <p>
-              Cadastre as operações utilizadas
-              no acompanhamento.
-            </p>
-
-          </div>
-
-        </div>
-
-
-        <form
-          id="operationForm"
-          class="inline-form"
-        >
-
-          <input
-            id="operationName"
-            type="text"
-            placeholder="Ex.: HUB-LPA-03"
-            required
-          >
-
-
-          <button
-            type="submit"
-            class="primary-action-button"
-          >
-            + Cadastrar
-          </button>
-
-        </form>
-
-
-        <div id="operationsList">
-
-          <div class="page-loading">
-            Carregando operações...
-          </div>
-
-        </div>
-
-      </section>
-
-
-      <!-- ==================================================
-           USUÁRIOS CORPORATIVOS
-      =================================================== -->
-
-      <section class="dashboard-panel">
-
-        <div class="panel-header">
-
-          <div>
-
-            <h3>
-              Usuários corporativos
-            </h3>
-
-            <p>
-              Cadastre Lideranças e
-              Gestores de RH.
-            </p>
-
-          </div>
-
-        </div>
-
-
-        <form
-          id="corporateUserForm"
-          class="settings-form"
-        >
-
-
-          <div class="form-group">
-
-            <label>
-              Nome completo
-            </label>
-
-            <input
-              id="corporateUserName"
-              type="text"
-              placeholder="Nome completo"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>
-              E-mail Shopee
-            </label>
-
-            <input
-              id="corporateUserEmail"
-              type="email"
-              placeholder="nome@shopee.com"
-              required
-            >
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>
-              Perfil
-            </label>
-
-            <select
-              id="corporateUserRole"
-              required
-            >
-
-              <option value="">
-                Selecione
-              </option>
-
-              <option value="LEADER">
-                Líder
-              </option>
-
-              <option value="HR_MANAGER">
-                Gestor de RH
-              </option>
-
-            </select>
-
-          </div>
-
-
-          <div class="form-group">
-
-            <label>
-              Senha inicial
-            </label>
-
-            <input
-              id="corporateUserPassword"
-              type="password"
-              minlength="8"
-              placeholder="Mínimo 8 caracteres"
-              required
-            >
-
-            <span class="form-help">
-              O usuário deverá alterar a senha
-              no primeiro acesso.
-            </span>
-
-          </div>
-
-
-          <div
-            id="leaderOperationsField"
-            class="form-group hidden"
-          >
-
-            <label>
-              Operações da liderança
-            </label>
-
-            <div
-              id="leaderOperationsOptions"
-              class="operations-checkbox-list"
-            ></div>
-
-          </div>
-
-
-          <button
-            id="createCorporateUserButton"
-            class="primary-action-button full-button"
-            type="submit"
-          >
-            Criar usuário
-          </button>
-
-        </form>
-
-
-        <div class="settings-section-divider"></div>
-
-
-        <div class="panel-header">
-
-          <div>
-
-            <h3>
-              Acessos cadastrados
-            </h3>
-
-          </div>
-
-        </div>
-
-
-        <div id="corporateUsersList">
-
-          <div class="page-loading">
-            Carregando usuários...
-          </div>
-
-        </div>
-
-      </section>
-
-    </div>
-
-  `;
-
-
-  document
-    .getElementById(
-      'operationForm'
-    )
-    .addEventListener(
-      'submit',
-      createOperation
+  const confirmed =
+    confirm(
+      `Excluir definitivamente ${employeeName}?\n\n` +
+      `Esta ação poderá remover jornada, avaliações, respostas e acesso do colaborador.\n\n` +
+      `A ação não pode ser desfeita.`
     );
 
 
-  document
-    .getElementById(
-      'corporateUserForm'
-    )
-    .addEventListener(
-      'submit',
-      createCorporateUser
-    );
-
-
-  document
-    .getElementById(
-      'corporateUserRole'
-    )
-    .addEventListener(
-      'change',
-      handleCorporateRoleChange
-    );
-
-
-  await loadOperations();
-
-  await loadCorporateUsers();
-
-}
-
-
-// ============================================================
-// OPERAÇÕES
-// ============================================================
-
-async function loadOperations() {
-
-  const {
-    data,
-    error
-  } =
-    await journeySupabase
-      .from('operations')
-      .select(`
-        id,
-        name,
-        active
-      `)
-      .order(
-        'name'
-      );
-
-
-  const list =
-    document.getElementById(
-      'operationsList'
-    );
-
-
-  const options =
-    document.getElementById(
-      'leaderOperationsOptions'
-    );
-
-
-  if (error) {
-
-    if (list) {
-
-      list.innerHTML =
-        escapeHTML(
-          error.message
-        );
-
-    }
-
+  if (!confirmed) {
     return;
-
   }
-
-
-  if (list) {
-
-    if (
-      !data ||
-      data.length === 0
-    ) {
-
-      list.innerHTML = `
-
-        <div class="empty-state">
-
-          <strong>
-            Nenhuma operação cadastrada
-          </strong>
-
-          <p>
-            Cadastre seu primeiro HUB.
-          </p>
-
-        </div>
-
-      `;
-
-    }
-
-    else {
-
-      list.innerHTML =
-        data.map(
-          operation => `
-
-            <div class="settings-list-item">
-
-              <div>
-
-                <strong>
-                  ${escapeHTML(
-                    operation.name
-                  )}
-                </strong>
-
-                <span>
-                  ${
-                    operation.active
-                      ? 'Ativa'
-                      : 'Inativa'
-                  }
-                </span>
-
-              </div>
-
-            </div>
-
-          `
-        )
-        .join('');
-
-    }
-
-  }
-
-
-  if (options) {
-
-    options.innerHTML =
-      (
-        data || []
-      )
-        .filter(
-          operation =>
-            operation.active
-        )
-        .map(
-          operation => `
-
-            <label class="operation-checkbox">
-
-              <input
-                type="checkbox"
-                name="leaderOperation"
-                value="${operation.id}"
-              >
-
-              <span>
-                ${escapeHTML(
-                  operation.name
-                )}
-              </span>
-
-            </label>
-
-          `
-        )
-        .join('');
-
-  }
-
-}
-
-
-// ============================================================
-// CADASTRAR OPERAÇÃO
-// ============================================================
-
-async function createOperation(event) {
-
-  event.preventDefault();
-
-
-  const input =
-    document.getElementById(
-      'operationName'
-    );
-
-
-  const name =
-    input.value
-      .trim()
-      .toUpperCase();
-
-
-  if (!name) {
-
-    return;
-
-  }
-
-
-  const {
-    error
-  } =
-    await journeySupabase
-      .from('operations')
-      .insert({
-        name,
-        active: true
-      });
-
-
-  if (error) {
-
-    if (
-      error.code ===
-      '23505'
-    ) {
-
-      alert(
-        'Esta operação já está cadastrada.'
-      );
-
-    }
-
-    else {
-
-      alert(
-        error.message
-      );
-
-    }
-
-    return;
-
-  }
-
-
-  input.value = '';
-
-
-  await loadOperations();
-
-}
-
-
-// ============================================================
-// ALTERAR PERFIL DO CADASTRO
-// ============================================================
-
-function handleCorporateRoleChange() {
-
-  const role =
-    document.getElementById(
-      'corporateUserRole'
-    )
-    .value;
-
-
-  const field =
-    document.getElementById(
-      'leaderOperationsField'
-    );
-
-
-  if (
-    role ===
-    'LEADER'
-  ) {
-
-    field.classList
-      .remove('hidden');
-
-  }
-
-  else {
-
-    field.classList
-      .add('hidden');
-
-
-    document
-      .querySelectorAll(
-        'input[name="leaderOperation"]'
-      )
-      .forEach(
-        checkbox => {
-
-          checkbox.checked =
-            false;
-
-        }
-      );
-
-  }
-
-}
-
-
-// ============================================================
-// CRIAR USUÁRIO CORPORATIVO
-// ============================================================
-
-async function createCorporateUser(event) {
-
-  event.preventDefault();
-
-
-  const fullName =
-    document
-      .getElementById(
-        'corporateUserName'
-      )
-      .value
-      .trim();
-
-
-  const email =
-    document
-      .getElementById(
-        'corporateUserEmail'
-      )
-      .value
-      .trim()
-      .toLowerCase();
-
-
-  const role =
-    document
-      .getElementById(
-        'corporateUserRole'
-      )
-      .value;
-
-
-  const password =
-    document
-      .getElementById(
-        'corporateUserPassword'
-      )
-      .value;
-
-
-  const operationIds =
-    Array.from(
-      document.querySelectorAll(
-        'input[name="leaderOperation"]:checked'
-      )
-    )
-      .map(
-        item =>
-          item.value
-      );
-
-
-  if (
-    !email.endsWith(
-      '@shopee.com'
-    )
-  ) {
-
-    alert(
-      'Utilize um e-mail corporativo @shopee.com.'
-    );
-
-    return;
-
-  }
-
-
-  if (
-    role === 'LEADER'
-    &&
-    operationIds.length === 0
-  ) {
-
-    alert(
-      'Selecione pelo menos uma operação para o líder.'
-    );
-
-    return;
-
-  }
-
-
-  const button =
-    document.getElementById(
-      'createCorporateUserButton'
-    );
-
-
-  button.disabled =
-    true;
-
-
-  button.textContent =
-    'Criando usuário...';
 
 
   try {
@@ -4553,14 +3670,10 @@ async function createCorporateUser(event) {
       await journeySupabase
         .functions
         .invoke(
-          'create-corporate-user',
+          'delete-employee',
           {
             body: {
-              fullName,
-              email,
-              password,
-              role,
-              operationIds
+              employmentId
             }
           }
         );
@@ -4568,36 +3681,11 @@ async function createCorporateUser(event) {
 
     if (error) {
 
-      let message =
-        error.message;
-
-
-      if (
-        error.context
-      ) {
-
-        try {
-
-          const body =
-            await error.context
-              .clone()
-              .json();
-
-
-          message =
-            body?.error
-            ||
-            message;
-
-        }
-
-        catch (_) {}
-
-      }
-
-
       throw new Error(
-        message
+        await readEdgeFunctionError(
+          error,
+          'Erro ao excluir colaborador.'
+        )
       );
 
     }
@@ -4610,52 +3698,30 @@ async function createCorporateUser(event) {
       throw new Error(
         data?.error
         ||
-        'Não foi possível criar o usuário.'
+        'Não foi possível excluir o colaborador.'
       );
 
     }
 
 
     alert(
-      'Usuário criado com sucesso.'
+      `${employeeName} foi excluído com sucesso.`
     );
 
 
-    document
-      .getElementById(
-        'corporateUserForm'
-      )
-      .reset();
-
-
-    handleCorporateRoleChange();
-
-
-    await loadCorporateUsers();
+    await loadWaitingEmployees();
 
   }
 
   catch (error) {
 
-    console.error(
-      error
-    );
-
+    console.error(error);
 
     alert(
       error.message
+      ||
+      'Erro ao excluir colaborador.'
     );
-
-  }
-
-  finally {
-
-    button.disabled =
-      false;
-
-
-    button.textContent =
-      'Criar usuário';
 
   }
 
@@ -4663,197 +3729,7 @@ async function createCorporateUser(event) {
 
 
 // ============================================================
-// LISTAR USUÁRIOS CORPORATIVOS
-// ============================================================
-
-async function loadCorporateUsers() {
-
-  const container =
-    document.getElementById(
-      'corporateUsersList'
-    );
-
-
-  if (!container) {
-
-    return;
-
-  }
-
-
-  const {
-    data,
-    error
-  } =
-    await journeySupabase
-      .from('profiles')
-      .select(`
-        id,
-        full_name,
-        role,
-        corporate_email,
-        active,
-
-        leader_operations (
-          operation_id,
-
-          operations (
-            id,
-            name
-          )
-        )
-      `)
-      .in(
-        'role',
-        [
-          'LEADER',
-          'HR_MANAGER'
-        ]
-      )
-      .order(
-        'full_name'
-      );
-
-
-  if (error) {
-
-    container.innerHTML = `
-
-      <p>
-        ${escapeHTML(
-          error.message
-        )}
-      </p>
-
-    `;
-
-    return;
-
-  }
-
-
-  if (
-    !data ||
-    data.length === 0
-  ) {
-
-    container.innerHTML = `
-
-      <div class="empty-state">
-
-        <strong>
-          Nenhum acesso cadastrado
-        </strong>
-
-        <p>
-          Cadastre uma liderança ou
-          Gestor de RH acima.
-        </p>
-
-      </div>
-
-    `;
-
-    return;
-
-  }
-
-
-  container.innerHTML =
-    data.map(
-      user => {
-
-        const roleLabel =
-          user.role ===
-          'LEADER'
-            ? 'Liderança'
-            : 'Gestor de RH';
-
-
-        const operations =
-          (
-            user.leader_operations
-            ||
-            []
-          )
-            .map(
-              link =>
-                link.operations
-                  ?.name
-            )
-            .filter(
-              Boolean
-            );
-
-
-        return `
-
-          <div class="corporate-user-card">
-
-            <div class="corporate-user-avatar">
-
-              ${getInitials(
-                user.full_name
-              )}
-
-            </div>
-
-
-            <div class="corporate-user-info">
-
-              <strong>
-                ${escapeHTML(
-                  user.full_name
-                )}
-              </strong>
-
-              <span>
-                ${escapeHTML(
-                  user.corporate_email
-                  ||
-                  ''
-                )}
-              </span>
-
-
-              <div class="corporate-user-tags">
-
-                <span class="status-pill waiting">
-                  ${roleLabel}
-                </span>
-
-
-                ${
-                  operations.map(
-                    operation => `
-
-                      <span class="operation-tag">
-                        ${escapeHTML(
-                          operation
-                        )}
-                      </span>
-
-                    `
-                  )
-                  .join('')
-                }
-
-              </div>
-
-            </div>
-
-          </div>
-
-        `;
-
-      }
-    )
-    .join('');
-
-}
-
-// ============================================================
-// HOME DE CONFIGURAÇÕES
+// CONFIGURAÇÕES - HOME
 // ============================================================
 
 async function loadSettingsHome() {
@@ -4949,13 +3825,16 @@ async function loadSettingsHome() {
       </div>
 
 
-      <div class="settings-home-grid">
+      <div
+        id="settingsHomeGrid"
+        class="settings-home-grid"
+      >
 
 
         <button
-          id="settingsRegionalsCard"
           class="settings-home-card"
           type="button"
+          data-settings-action="regionals"
         >
 
           <div class="settings-home-icon">
@@ -4983,9 +3862,9 @@ async function loadSettingsHome() {
 
 
         <button
-          id="settingsOperationsCard"
           class="settings-home-card"
           type="button"
+          data-settings-action="operations"
         >
 
           <div class="settings-home-icon">
@@ -5013,9 +3892,9 @@ async function loadSettingsHome() {
 
 
         <button
-          id="settingsCorporateUsersCard"
           class="settings-home-card"
           type="button"
+          data-settings-action="corporate-users"
         >
 
           <div class="settings-home-icon">
@@ -5043,9 +3922,9 @@ async function loadSettingsHome() {
 
 
         <button
-          id="settingsCheckpointsCard"
           class="settings-home-card"
           type="button"
+          data-settings-action="checkpoints"
         >
 
           <div class="settings-home-icon">
@@ -5077,61 +3956,59 @@ async function loadSettingsHome() {
     `;
 
 
-    // ========================================================
-    // EVENTOS DOS CARDS
-    // ========================================================
-
     document
       .getElementById(
-        'settingsRegionalsCard'
+        'settingsHomeGrid'
       )
       ?.addEventListener(
         'click',
-        async () => {
+        async event => {
 
-          await loadRegionalsManager();
-
-        }
-      );
-
-
-    document
-      .getElementById(
-        'settingsOperationsCard'
-      )
-      ?.addEventListener(
-        'click',
-        async () => {
-
-          await loadOperationsManager();
-
-        }
-      );
+          const card =
+            event.target.closest(
+              '[data-settings-action]'
+            );
 
 
-    document
-      .getElementById(
-        'settingsCorporateUsersCard'
-      )
-      ?.addEventListener(
-        'click',
-        () => {
-
-          loadCorporateUsersManager();
-
-        }
-      );
+          if (!card) {
+            return;
+          }
 
 
-    document
-      .getElementById(
-        'settingsCheckpointsCard'
-      )
-      ?.addEventListener(
-        'click',
-        () => {
+          const action =
+            card.dataset.settingsAction;
 
-          openCheckpointSettings();
+
+          switch (action) {
+
+            case 'regionals':
+
+              await loadRegionalsManager();
+
+              break;
+
+
+            case 'operations':
+
+              await loadOperationsManager();
+
+              break;
+
+
+            case 'corporate-users':
+
+              await loadCorporateUsersManager();
+
+              break;
+
+
+            case 'checkpoints':
+
+              openCheckpointSettings();
+
+              break;
+
+          }
 
         }
       );
@@ -5155,9 +4032,7 @@ async function loadSettingsHome() {
         </h2>
 
         <p>
-          ${escapeHTML(
-            error.message
-          )}
+          ${escapeHTML(error.message)}
         </p>
 
       </div>
@@ -5167,6 +4042,12 @@ async function loadSettingsHome() {
   }
 
 }
+
+
+// ============================================================
+// CONFIGURAÇÕES - REGIONAIS
+// ============================================================
+
 async function loadRegionalsManager() {
 
   const {
@@ -5180,15 +4061,28 @@ async function loadRegionalsManager() {
         name,
         active
       `)
-      .order('name');
+      .order(
+        'name'
+      );
 
 
   if (error) {
 
-    alert(error.message);
+    alert(
+      error.message
+    );
+
     return;
 
   }
+
+
+  regionalsCache =
+    data || [];
+
+
+  regionalCurrentPage =
+    1;
 
 
   pageContent.innerHTML = `
@@ -5196,8 +4090,9 @@ async function loadRegionalsManager() {
     <div class="settings-manager-header">
 
       <button
+        id="backFromRegionals"
         class="back-button"
-        onclick="loadSettingsHome()"
+        type="button"
       >
         ← Voltar
       </button>
@@ -5249,116 +4144,12 @@ async function loadRegionalsManager() {
           id="regionalSearch"
           type="search"
           placeholder="Buscar Regional..."
-          oninput="filterRegionalRows()"
         >
 
       </div>
 
 
-      <div
-        id="regionalRows"
-        class="compact-settings-list"
-      >
-
-        ${
-          data.length
-
-          ? data.map(
-              regional => `
-
-                <div
-                  class="compact-settings-row regional-row"
-                  data-search="${escapeHTML(
-                    regional.name.toLowerCase()
-                  )}"
-                >
-
-                  <div>
-
-                    <strong>
-                      ${escapeHTML(
-                        regional.name
-                      )}
-                    </strong>
-
-                    <span>
-                      ${
-                        regional.active
-                          ? 'Ativa'
-                          : 'Inativa'
-                      }
-                    </span>
-
-                  </div>
-
-
-                  <div class="row-actions">
-
-                    <button
-                      onclick="
-                        editRegional(
-                          '${regional.id}',
-                          '${escapeJS(
-                            regional.name
-                          )}'
-                        )
-                      "
-                    >
-                      Editar
-                    </button>
-
-
-                    <button
-                      onclick="
-                        toggleRegional(
-                          '${regional.id}',
-                          ${!regional.active}
-                        )
-                      "
-                    >
-                      ${
-                        regional.active
-                          ? 'Inativar'
-                          : 'Ativar'
-                      }
-                    </button>
-
-
-                    <button
-                      class="danger-action"
-                      onclick="
-                        deleteRegional(
-                          '${regional.id}',
-                          '${escapeJS(
-                            regional.name
-                          )}'
-                        )
-                      "
-                    >
-                      Excluir
-                    </button>
-
-                  </div>
-
-                </div>
-
-              `
-            ).join('')
-
-          : `
-
-              <div class="empty-state">
-
-                <strong>
-                  Nenhuma Regional cadastrada
-                </strong>
-
-              </div>
-
-            `
-        }
-
-      </div>
+      <div id="regionalManagerList"></div>
 
     </section>
 
@@ -5367,12 +4158,310 @@ async function loadRegionalsManager() {
 
   document
     .getElementById(
+      'backFromRegionals'
+    )
+    ?.addEventListener(
+      'click',
+      loadSettingsHome
+    );
+
+
+  document
+    .getElementById(
       'regionalCreateForm'
     )
-    .addEventListener(
+    ?.addEventListener(
       'submit',
       createRegional
     );
+
+
+  document
+    .getElementById(
+      'regionalSearch'
+    )
+    ?.addEventListener(
+      'input',
+      () => {
+
+        regionalCurrentPage =
+          1;
+
+        renderRegionalsManager();
+
+      }
+    );
+
+
+  renderRegionalsManager();
+
+}
+
+
+function renderRegionalsManager() {
+
+  const container =
+    document.getElementById(
+      'regionalManagerList'
+    );
+
+
+  if (!container) {
+    return;
+  }
+
+
+  const search =
+    (
+      document
+        .getElementById(
+          'regionalSearch'
+        )
+        ?.value
+      ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const filtered =
+    regionalsCache.filter(
+      regional =>
+
+        !search
+        ||
+        regional.name
+          .toLowerCase()
+          .includes(search)
+
+    );
+
+
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(
+        filtered.length
+        /
+        SETTINGS_PAGE_SIZE
+      )
+    );
+
+
+  if (
+    regionalCurrentPage >
+    totalPages
+  ) {
+
+    regionalCurrentPage =
+      totalPages;
+
+  }
+
+
+  const start =
+    (
+      regionalCurrentPage - 1
+    )
+    *
+    SETTINGS_PAGE_SIZE;
+
+
+  const pageRows =
+    filtered.slice(
+      start,
+      start + SETTINGS_PAGE_SIZE
+    );
+
+
+  if (!pageRows.length) {
+
+    container.innerHTML = `
+
+      <div class="empty-state">
+
+        <strong>
+          Nenhuma Regional encontrada
+        </strong>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  container.innerHTML = `
+
+    <div class="compact-settings-list">
+
+      ${
+        pageRows
+          .map(
+            regional => `
+
+              <div class="compact-settings-row">
+
+                <div>
+
+                  <strong>
+                    ${escapeHTML(
+                      regional.name
+                    )}
+                  </strong>
+
+                  <span>
+                    ${
+                      regional.active
+                        ? 'Ativa'
+                        : 'Inativa'
+                    }
+                  </span>
+
+                </div>
+
+
+                <div class="row-actions">
+
+                  <button
+                    class="regional-edit"
+                    type="button"
+                    data-id="${regional.id}"
+                  >
+                    Editar
+                  </button>
+
+
+                  <button
+                    class="regional-toggle"
+                    type="button"
+                    data-id="${regional.id}"
+                    data-active="${regional.active}"
+                  >
+                    ${
+                      regional.active
+                        ? 'Inativar'
+                        : 'Ativar'
+                    }
+                  </button>
+
+
+                  <button
+                    class="danger-action regional-delete"
+                    type="button"
+                    data-id="${regional.id}"
+                    data-name="${escapeHTML(
+                      regional.name
+                    )}"
+                  >
+                    Excluir
+                  </button>
+
+                </div>
+
+              </div>
+
+            `
+          )
+          .join('')
+      }
+
+    </div>
+
+
+    ${renderPaginationHTML(
+      regionalCurrentPage,
+      totalPages,
+      'regional-pagination'
+    )}
+
+  `;
+
+
+  container
+    .querySelectorAll(
+      '.regional-edit'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            editRegional(
+              button.dataset.id
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
+      '.regional-toggle'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            toggleRegional(
+              button.dataset.id,
+              button.dataset.active
+              !== 'true'
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
+      '.regional-delete'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            deleteRegional(
+              button.dataset.id,
+              button.dataset.name
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  bindPagination(
+    container,
+    'regional-pagination',
+    page => {
+
+      regionalCurrentPage =
+        page;
+
+      renderRegionalsManager();
+
+    }
+  );
 
 }
 
@@ -5427,15 +4516,24 @@ async function createRegional(event) {
 }
 
 
-async function editRegional(
-  id,
-  oldName
-) {
+async function editRegional(id) {
+
+  const regional =
+    regionalsCache.find(
+      item =>
+        item.id === id
+    );
+
+
+  if (!regional) {
+    return;
+  }
+
 
   const newName =
     prompt(
       'Novo nome da Regional:',
-      oldName
+      regional.name
     );
 
 
@@ -5453,6 +4551,7 @@ async function editRegional(
     await journeySupabase
       .from('regionals')
       .update({
+
         name:
           newName
             .trim()
@@ -5461,6 +4560,7 @@ async function editRegional(
         updated_at:
           new Date()
             .toISOString()
+
       })
       .eq(
         'id',
@@ -5470,7 +4570,10 @@ async function editRegional(
 
   if (error) {
 
-    alert(error.message);
+    alert(
+      error.message
+    );
+
     return;
 
   }
@@ -5492,11 +4595,13 @@ async function toggleRegional(
     await journeySupabase
       .from('regionals')
       .update({
+
         active,
 
         updated_at:
           new Date()
             .toISOString()
+
       })
       .eq(
         'id',
@@ -5506,7 +4611,10 @@ async function toggleRegional(
 
   if (error) {
 
-    alert(error.message);
+    alert(
+      error.message
+    );
+
     return;
 
   }
@@ -5559,35 +4667,9 @@ async function deleteRegional(
 }
 
 
-function filterRegionalRows() {
-
-  const value =
-    document
-      .getElementById(
-        'regionalSearch'
-      )
-      .value
-      .toLowerCase();
-
-
-  document
-    .querySelectorAll(
-      '.regional-row'
-    )
-    .forEach(
-      row => {
-
-        row.style.display =
-          row.dataset.search.includes(
-            value
-          )
-            ? ''
-            : 'none';
-
-      }
-    );
-
-}
+// ============================================================
+// CONFIGURAÇÕES - OPERAÇÕES
+// ============================================================
 
 async function loadOperationsManager() {
 
@@ -5612,24 +4694,21 @@ async function loadOperationsManager() {
         `)
         .order('name'),
 
-
       journeySupabase
         .from('regionals')
         .select(`
           id,
-          name
+          name,
+          active
         `)
-        .eq(
-          'active',
-          true
-        )
         .order('name')
 
     ]);
 
 
   if (
-    operationsResult.error ||
+    operationsResult.error
+    ||
     regionalsResult.error
   ) {
 
@@ -5644,12 +4723,20 @@ async function loadOperationsManager() {
   }
 
 
-  const operations =
-    operationsResult.data || [];
+  operationsCache =
+    operationsResult.data
+    ||
+    [];
 
 
-  const regionals =
-    regionalsResult.data || [];
+  operationRegionalsCache =
+    regionalsResult.data
+    ||
+    [];
+
+
+  operationCurrentPage =
+    1;
 
 
   pageContent.innerHTML = `
@@ -5657,8 +4744,9 @@ async function loadOperationsManager() {
     <div class="settings-manager-header">
 
       <button
+        id="backFromOperations"
         class="back-button"
-        onclick="loadSettingsHome()"
+        type="button"
       >
         ← Voltar
       </button>
@@ -5698,17 +4786,25 @@ async function loadOperationsManager() {
           </option>
 
           ${
-            regionals.map(
-              regional => `
+            operationRegionalsCache
+              .filter(
+                regional =>
+                  regional.active
+              )
+              .map(
+                regional => `
 
-                <option value="${regional.id}">
-                  ${escapeHTML(
-                    regional.name
-                  )}
-                </option>
+                  <option
+                    value="${regional.id}"
+                  >
+                    ${escapeHTML(
+                      regional.name
+                    )}
+                  </option>
 
-              `
-            ).join('')
+                `
+              )
+              .join('')
           }
 
         </select>
@@ -5739,13 +4835,11 @@ async function loadOperationsManager() {
           id="operationSearch"
           type="search"
           placeholder="Buscar operação..."
-          oninput="filterOperationsTable()"
         >
 
 
         <select
           id="operationRegionalFilter"
-          onchange="filterOperationsTable()"
         >
 
           <option value="">
@@ -5753,19 +4847,21 @@ async function loadOperationsManager() {
           </option>
 
           ${
-            regionals.map(
-              regional => `
+            operationRegionalsCache
+              .map(
+                regional => `
 
-                <option
-                  value="${regional.id}"
-                >
-                  ${escapeHTML(
-                    regional.name
-                  )}
-                </option>
+                  <option
+                    value="${regional.id}"
+                  >
+                    ${escapeHTML(
+                      regional.name
+                    )}
+                  </option>
 
-              `
-            ).join('')
+                `
+              )
+              .join('')
           }
 
         </select>
@@ -5773,168 +4869,7 @@ async function loadOperationsManager() {
       </div>
 
 
-      <div class="table-wrapper">
-
-        <table class="journey-table">
-
-          <thead>
-
-            <tr>
-
-              <th>
-                Regional
-              </th>
-
-              <th>
-                Operação
-              </th>
-
-              <th>
-                Status
-              </th>
-
-              <th>
-                Ações
-              </th>
-
-            </tr>
-
-          </thead>
-
-
-          <tbody id="operationsTableBody">
-
-            ${
-              operations.map(
-                operation => `
-
-                  <tr
-                    class="operation-row"
-
-                    data-name="${escapeHTML(
-                      operation.name
-                        .toLowerCase()
-                    )}"
-
-                    data-regional="${
-                      operation.regional_id || ''
-                    }"
-                  >
-
-                    <td>
-
-                      ${
-                        operation.regionals?.name
-
-                        ? escapeHTML(
-                            operation.regionals.name
-                          )
-
-                        : `
-
-                          <span class="status-pill warning">
-                            Sem Regional
-                          </span>
-
-                        `
-                      }
-
-                    </td>
-
-
-                    <td>
-
-                      <strong>
-                        ${escapeHTML(
-                          operation.name
-                        )}
-                      </strong>
-
-                    </td>
-
-
-                    <td>
-
-                      <span
-                        class="status-pill ${
-                          operation.active
-                            ? 'success'
-                            : 'error'
-                        }"
-                      >
-                        ${
-                          operation.active
-                            ? 'Ativa'
-                            : 'Inativa'
-                        }
-                      </span>
-
-                    </td>
-
-
-                    <td>
-
-                      <div class="row-actions">
-
-                        <button
-                          onclick="
-                            editOperationName(
-                              '${operation.id}',
-                              '${escapeJS(
-                                operation.name
-                              )}'
-                            )
-                          "
-                        >
-                          Editar
-                        </button>
-
-
-                        <button
-                          onclick="
-                            toggleOperationStatus(
-                              '${operation.id}',
-                              ${!operation.active}
-                            )
-                          "
-                        >
-                          ${
-                            operation.active
-                              ? 'Inativar'
-                              : 'Ativar'
-                          }
-                        </button>
-
-
-                        <button
-                          class="danger-action"
-                          onclick="
-                            deleteOperationRecord(
-                              '${operation.id}',
-                              '${escapeJS(
-                                operation.name
-                              )}'
-                            )
-                          "
-                        >
-                          Excluir
-                        </button>
-
-                      </div>
-
-                    </td>
-
-                  </tr>
-
-                `
-              ).join('')
-            }
-
-          </tbody>
-
-        </table>
-
-      </div>
+      <div id="operationsManagerList"></div>
 
     </section>
 
@@ -5943,12 +4878,402 @@ async function loadOperationsManager() {
 
   document
     .getElementById(
+      'backFromOperations'
+    )
+    ?.addEventListener(
+      'click',
+      loadSettingsHome
+    );
+
+
+  document
+    .getElementById(
       'operationCreateForm'
     )
-    .addEventListener(
+    ?.addEventListener(
       'submit',
       createOperationWithRegional
     );
+
+
+  document
+    .getElementById(
+      'operationSearch'
+    )
+    ?.addEventListener(
+      'input',
+      () => {
+
+        operationCurrentPage =
+          1;
+
+        renderOperationsManager();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'operationRegionalFilter'
+    )
+    ?.addEventListener(
+      'change',
+      () => {
+
+        operationCurrentPage =
+          1;
+
+        renderOperationsManager();
+
+      }
+    );
+
+
+  renderOperationsManager();
+
+}
+
+
+function renderOperationsManager() {
+
+  const container =
+    document.getElementById(
+      'operationsManagerList'
+    );
+
+
+  if (!container) {
+    return;
+  }
+
+
+  const search =
+    (
+      document
+        .getElementById(
+          'operationSearch'
+        )
+        ?.value
+      ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const regional =
+    document
+      .getElementById(
+        'operationRegionalFilter'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const filtered =
+    operationsCache.filter(
+      operation => {
+
+        const searchOk =
+          !search
+          ||
+          operation.name
+            .toLowerCase()
+            .includes(search);
+
+
+        const regionalOk =
+          !regional
+          ||
+          operation.regional_id ===
+          regional;
+
+
+        return (
+          searchOk
+          &&
+          regionalOk
+        );
+
+      }
+    );
+
+
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(
+        filtered.length
+        /
+        SETTINGS_PAGE_SIZE
+      )
+    );
+
+
+  if (
+    operationCurrentPage >
+    totalPages
+  ) {
+
+    operationCurrentPage =
+      totalPages;
+
+  }
+
+
+  const start =
+    (
+      operationCurrentPage - 1
+    )
+    *
+    SETTINGS_PAGE_SIZE;
+
+
+  const pageRows =
+    filtered.slice(
+      start,
+      start + SETTINGS_PAGE_SIZE
+    );
+
+
+  container.innerHTML = `
+
+    <div class="table-wrapper">
+
+      <table class="journey-table">
+
+        <thead>
+
+          <tr>
+            <th>Regional</th>
+            <th>Operação</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            pageRows.length
+
+            ? pageRows
+                .map(
+                  operation => `
+
+                    <tr>
+
+                      <td>
+
+                        ${
+                          operation.regionals?.name
+
+                          ? escapeHTML(
+                              operation.regionals.name
+                            )
+
+                          : `
+
+                              <span class="status-pill warning">
+                                Sem Regional
+                              </span>
+
+                            `
+                        }
+
+                      </td>
+
+
+                      <td>
+
+                        <strong>
+                          ${escapeHTML(
+                            operation.name
+                          )}
+                        </strong>
+
+                      </td>
+
+
+                      <td>
+
+                        <span
+                          class="status-pill ${
+                            operation.active
+                              ? 'success'
+                              : 'error'
+                          }"
+                        >
+                          ${
+                            operation.active
+                              ? 'Ativa'
+                              : 'Inativa'
+                          }
+                        </span>
+
+                      </td>
+
+
+                      <td>
+
+                        <div class="row-actions">
+
+                          <button
+                            class="operation-edit"
+                            type="button"
+                            data-id="${operation.id}"
+                          >
+                            Editar
+                          </button>
+
+
+                          <button
+                            class="operation-toggle"
+                            type="button"
+                            data-id="${operation.id}"
+                            data-active="${operation.active}"
+                          >
+                            ${
+                              operation.active
+                                ? 'Inativar'
+                                : 'Ativar'
+                            }
+                          </button>
+
+
+                          <button
+                            class="danger-action operation-delete"
+                            type="button"
+                            data-id="${operation.id}"
+                            data-name="${escapeHTML(
+                              operation.name
+                            )}"
+                          >
+                            Excluir
+                          </button>
+
+                        </div>
+
+                      </td>
+
+                    </tr>
+
+                  `
+                )
+                .join('')
+
+            : `
+
+                <tr>
+                  <td colspan="4">
+                    Nenhuma operação encontrada.
+                  </td>
+                </tr>
+
+              `
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+
+    ${renderPaginationHTML(
+      operationCurrentPage,
+      totalPages,
+      'operation-pagination'
+    )}
+
+  `;
+
+
+  container
+    .querySelectorAll(
+      '.operation-edit'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            openOperationEditModal(
+              button.dataset.id
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
+      '.operation-toggle'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            toggleOperationStatus(
+              button.dataset.id,
+              button.dataset.active
+              !== 'true'
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
+      '.operation-delete'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            deleteOperationRecord(
+              button.dataset.id,
+              button.dataset.name
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  bindPagination(
+    container,
+    'operation-pagination',
+    page => {
+
+      operationCurrentPage =
+        page;
+
+      renderOperationsManager();
+
+    }
+  );
 
 }
 
@@ -6022,54 +5347,180 @@ async function createOperationWithRegional(
 }
 
 
-async function editOperationName(
-  id,
-  oldName
-) {
+function openOperationEditModal(id) {
 
-  const newName =
-    prompt(
-      'Novo nome/código da operação:',
-      oldName
+  const operation =
+    operationsCache.find(
+      item =>
+        item.id === id
     );
 
 
-  if (
-    !newName ||
-    !newName.trim()
-  ) {
+  if (!operation) {
     return;
   }
 
 
-  const {
-    error
-  } =
-    await journeySupabase
-      .from('operations')
-      .update({
+  openGenericModal(`
 
-        name:
-          newName
+    <div class="modal-header">
+
+      <div>
+        <h2>Editar Operação</h2>
+        <p>Atualize a Regional e o código do HUB.</p>
+      </div>
+
+      <button
+        id="closeGenericModalButton"
+        class="modal-close"
+        type="button"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <form
+      id="editOperationForm"
+      style="padding: 24px;"
+    >
+
+      <div class="form-group">
+
+        <label>
+          Regional
+        </label>
+
+        <select
+          id="editOperationRegional"
+          required
+        >
+
+          ${
+            operationRegionalsCache
+              .map(
+                regional => `
+
+                  <option
+                    value="${regional.id}"
+                    ${
+                      operation.regional_id ===
+                      regional.id
+                        ? 'selected'
+                        : ''
+                    }
+                  >
+                    ${escapeHTML(
+                      regional.name
+                    )}
+                  </option>
+
+                `
+              )
+              .join('')
+          }
+
+        </select>
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          Operação / HUB
+        </label>
+
+        <input
+          id="editOperationName"
+          type="text"
+          value="${escapeHTML(
+            operation.name
+          )}"
+          required
+        >
+
+      </div>
+
+
+      <button
+        class="primary-action-button full-button"
+        type="submit"
+      >
+        Salvar alterações
+      </button>
+
+    </form>
+
+  `);
+
+
+  document
+    .getElementById(
+      'editOperationForm'
+    )
+    ?.addEventListener(
+      'submit',
+      async event => {
+
+        event.preventDefault();
+
+
+        const regionalId =
+          document
+            .getElementById(
+              'editOperationRegional'
+            )
+            .value;
+
+
+        const name =
+          document
+            .getElementById(
+              'editOperationName'
+            )
+            .value
             .trim()
-            .toUpperCase()
-
-      })
-      .eq(
-        'id',
-        id
-      );
+            .toUpperCase();
 
 
-  if (error) {
+        const {
+          error
+        } =
+          await journeySupabase
+            .from('operations')
+            .update({
 
-    alert(error.message);
-    return;
+              name,
 
-  }
+              regional_id:
+                regionalId
+
+            })
+            .eq(
+              'id',
+              id
+            );
 
 
-  await loadOperationsManager();
+        if (error) {
+
+          alert(
+            error.message
+          );
+
+          return;
+
+        }
+
+
+        closeGenericModal();
+
+        await loadOperationsManager();
+
+      }
+    );
 
 }
 
@@ -6095,7 +5546,10 @@ async function toggleOperationStatus(
 
   if (error) {
 
-    alert(error.message);
+    alert(
+      error.message
+    );
+
     return;
 
   }
@@ -6148,70 +5602,24 @@ async function deleteOperationRecord(
 }
 
 
-function filterOperationsTable() {
+// ============================================================
+// CONFIGURAÇÕES - ACESSOS CORPORATIVOS
+// ============================================================
 
-  const search =
-    document
-      .getElementById(
-        'operationSearch'
-      )
-      .value
-      .toLowerCase();
-
-
-  const regional =
-    document
-      .getElementById(
-        'operationRegionalFilter'
-      )
-      .value;
-
-
-  document
-    .querySelectorAll(
-      '.operation-row'
-    )
-    .forEach(
-      row => {
-
-        const nameOk =
-          row.dataset.name.includes(
-            search
-          );
-
-
-        const regionalOk =
-          !regional
-          ||
-          row.dataset.regional ===
-          regional;
-
-
-        row.style.display =
-          (
-            nameOk &&
-            regionalOk
-          )
-            ? ''
-            : 'none';
-
-      }
-    );
-
-}
-
-function loadCorporateUsersManager() {
+async function loadCorporateUsersManager() {
 
   pageContent.innerHTML = `
 
     <div class="settings-manager-header">
 
       <button
+        id="backFromCorporateUsers"
         class="back-button"
-        onclick="loadSettingsHome()"
+        type="button"
       >
         ← Voltar
       </button>
+
 
       <div>
 
@@ -6225,22 +5633,75 @@ function loadCorporateUsersManager() {
 
       </div>
 
+
+      <button
+        id="newCorporateUserButton"
+        class="primary-action-button"
+        type="button"
+        style="margin-left:auto;"
+      >
+        + Novo acesso
+      </button>
+
     </div>
 
 
     <section class="dashboard-panel">
 
-      <div class="empty-state large">
 
-        <strong>
-          Gestão de Acessos
-        </strong>
+      <div class="settings-toolbar">
 
-        <p>
-          Vamos trazer o cadastro atual para
-          uma tabela compacta com busca,
-          filtros, edição e paginação.
-        </p>
+        <input
+          id="corporateUserSearch"
+          type="search"
+          placeholder="Buscar por nome ou e-mail..."
+        >
+
+
+        <select
+          id="corporateRoleFilter"
+        >
+
+          <option value="">
+            Todos os perfis
+          </option>
+
+          <option value="LEADER">
+            Liderança
+          </option>
+
+          <option value="HR_MANAGER">
+            Gestor de RH
+          </option>
+
+        </select>
+
+
+        <select
+          id="corporateRegionalFilter"
+        >
+          <option value="">
+            Todas as Regionais
+          </option>
+        </select>
+
+
+        <select
+          id="corporateOperationFilter"
+        >
+          <option value="">
+            Todas as Operações
+          </option>
+        </select>
+
+      </div>
+
+
+      <div id="corporateUsersManagerList">
+
+        <div class="page-loading">
+          Carregando acessos...
+        </div>
 
       </div>
 
@@ -6248,15 +5709,2002 @@ function loadCorporateUsersManager() {
 
   `;
 
+
+  document
+    .getElementById(
+      'backFromCorporateUsers'
+    )
+    ?.addEventListener(
+      'click',
+      loadSettingsHome
+    );
+
+
+  document
+    .getElementById(
+      'newCorporateUserButton'
+    )
+    ?.addEventListener(
+      'click',
+      openCorporateUserCreateModal
+    );
+
+
+  document
+    .getElementById(
+      'corporateUserSearch'
+    )
+    ?.addEventListener(
+      'input',
+      () => {
+
+        corporateCurrentPage =
+          1;
+
+        renderCorporateUsersManager();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'corporateRoleFilter'
+    )
+    ?.addEventListener(
+      'change',
+      () => {
+
+        corporateCurrentPage =
+          1;
+
+        renderCorporateUsersManager();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'corporateRegionalFilter'
+    )
+    ?.addEventListener(
+      'change',
+      () => {
+
+        corporateCurrentPage =
+          1;
+
+        updateCorporateOperationFilter();
+
+        renderCorporateUsersManager();
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'corporateOperationFilter'
+    )
+    ?.addEventListener(
+      'change',
+      () => {
+
+        corporateCurrentPage =
+          1;
+
+        renderCorporateUsersManager();
+
+      }
+    );
+
+
+  await fetchCorporateUsersManager();
+
 }
 
+
+async function fetchCorporateUsersManager() {
+
+  const [
+    usersResult,
+    operationsResult
+  ] =
+    await Promise.all([
+
+      journeySupabase
+        .from('profiles')
+        .select(`
+          id,
+          full_name,
+          role,
+          corporate_email,
+          active,
+
+          leader_operations (
+            operation_id,
+
+            operations (
+              id,
+              name,
+              regional_id,
+
+              regionals (
+                id,
+                name
+              )
+            )
+          )
+        `)
+        .in(
+          'role',
+          [
+            'LEADER',
+            'HR_MANAGER'
+          ]
+        )
+        .order(
+          'full_name'
+        ),
+
+
+      journeySupabase
+        .from('operations')
+        .select(`
+          id,
+          name,
+          active,
+          regional_id,
+
+          regionals (
+            id,
+            name,
+            active
+          )
+        `)
+        .order(
+          'name'
+        )
+
+    ]);
+
+
+  if (
+    usersResult.error
+    ||
+    operationsResult.error
+  ) {
+
+    const container =
+      document.getElementById(
+        'corporateUsersManagerList'
+      );
+
+
+    if (container) {
+
+      container.innerHTML = `
+
+        <div class="system-error">
+
+          <p>
+            ${escapeHTML(
+              usersResult.error?.message
+              ||
+              operationsResult.error?.message
+            )}
+          </p>
+
+        </div>
+
+      `;
+
+    }
+
+    return;
+
+  }
+
+
+  corporateUsersCache =
+    usersResult.data
+    ||
+    [];
+
+
+  corporateOperationsCache =
+    operationsResult.data
+    ||
+    [];
+
+
+  corporateCurrentPage =
+    1;
+
+
+  populateCorporateRegionalFilter();
+
+  updateCorporateOperationFilter();
+
+  renderCorporateUsersManager();
+
+}
+
+
+function populateCorporateRegionalFilter() {
+
+  const select =
+    document.getElementById(
+      'corporateRegionalFilter'
+    );
+
+
+  if (!select) {
+    return;
+  }
+
+
+  const regionals =
+    [
+      ...new Map(
+        corporateOperationsCache
+          .filter(
+            operation =>
+              operation.regionals
+          )
+          .map(
+            operation => [
+
+              operation.regionals.id,
+
+              operation.regionals
+
+            ]
+          )
+      )
+      .values()
+    ];
+
+
+  select.innerHTML = `
+
+    <option value="">
+      Todas as Regionais
+    </option>
+
+    ${
+      regionals
+        .map(
+          regional => `
+
+            <option value="${regional.id}">
+              ${escapeHTML(
+                regional.name
+              )}
+            </option>
+
+          `
+        )
+        .join('')
+    }
+
+  `;
+
+}
+
+
+function updateCorporateOperationFilter() {
+
+  const regionalSelect =
+    document.getElementById(
+      'corporateRegionalFilter'
+    );
+
+
+  const operationSelect =
+    document.getElementById(
+      'corporateOperationFilter'
+    );
+
+
+  if (
+    !regionalSelect
+    ||
+    !operationSelect
+  ) {
+    return;
+  }
+
+
+  const regionalId =
+    regionalSelect.value;
+
+
+  const operations =
+    corporateOperationsCache
+      .filter(
+        operation =>
+
+          !regionalId
+          ||
+          operation.regional_id ===
+          regionalId
+
+      );
+
+
+  operationSelect.innerHTML = `
+
+    <option value="">
+      Todas as Operações
+    </option>
+
+    ${
+      operations
+        .map(
+          operation => `
+
+            <option value="${operation.id}">
+              ${escapeHTML(
+                operation.name
+              )}
+            </option>
+
+          `
+        )
+        .join('')
+    }
+
+  `;
+
+}
+
+
+function renderCorporateUsersManager() {
+
+  const container =
+    document.getElementById(
+      'corporateUsersManagerList'
+    );
+
+
+  if (!container) {
+    return;
+  }
+
+
+  const search =
+    (
+      document
+        .getElementById(
+          'corporateUserSearch'
+        )
+        ?.value
+      ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const role =
+    document
+      .getElementById(
+        'corporateRoleFilter'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const regionalId =
+    document
+      .getElementById(
+        'corporateRegionalFilter'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const operationId =
+    document
+      .getElementById(
+        'corporateOperationFilter'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const filtered =
+    corporateUsersCache.filter(
+      user => {
+
+        const links =
+          user.leader_operations
+          ||
+          [];
+
+
+        const searchOk =
+          !search
+          ||
+          user.full_name
+            ?.toLowerCase()
+            .includes(search)
+          ||
+          user.corporate_email
+            ?.toLowerCase()
+            .includes(search);
+
+
+        const roleOk =
+          !role
+          ||
+          user.role ===
+          role;
+
+
+        let regionalOk =
+          true;
+
+
+        let operationOk =
+          true;
+
+
+        if (
+          user.role ===
+          'LEADER'
+        ) {
+
+          regionalOk =
+            !regionalId
+            ||
+            links.some(
+              link =>
+                link.operations
+                  ?.regional_id ===
+                regionalId
+            );
+
+
+          operationOk =
+            !operationId
+            ||
+            links.some(
+              link =>
+                link.operation_id ===
+                operationId
+            );
+
+        }
+
+        else {
+
+          regionalOk =
+            !regionalId;
+
+          operationOk =
+            !operationId;
+
+        }
+
+
+        return (
+          searchOk
+          &&
+          roleOk
+          &&
+          regionalOk
+          &&
+          operationOk
+        );
+
+      }
+    );
+
+
+  const totalPages =
+    Math.max(
+      1,
+      Math.ceil(
+        filtered.length
+        /
+        SETTINGS_PAGE_SIZE
+      )
+    );
+
+
+  if (
+    corporateCurrentPage >
+    totalPages
+  ) {
+
+    corporateCurrentPage =
+      totalPages;
+
+  }
+
+
+  const start =
+    (
+      corporateCurrentPage - 1
+    )
+    *
+    SETTINGS_PAGE_SIZE;
+
+
+  const pageRows =
+    filtered.slice(
+      start,
+      start + SETTINGS_PAGE_SIZE
+    );
+
+
+  container.innerHTML = `
+
+    <div class="table-wrapper">
+
+      <table class="journey-table">
+
+        <thead>
+
+          <tr>
+            <th>Usuário</th>
+            <th>Perfil</th>
+            <th>Regional</th>
+            <th>Operações</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            pageRows.length
+
+            ? pageRows
+                .map(
+                  user => {
+
+                    const links =
+                      user.leader_operations
+                      ||
+                      [];
+
+
+                    const operations =
+                      links
+                        .map(
+                          link =>
+                            link.operations
+                              ?.name
+                        )
+                        .filter(Boolean);
+
+
+                    const regionals =
+                      [
+                        ...new Set(
+                          links
+                            .map(
+                              link =>
+                                link.operations
+                                  ?.regionals
+                                  ?.name
+                            )
+                            .filter(Boolean)
+                        )
+                      ];
+
+
+                    return `
+
+                      <tr>
+
+                        <td>
+
+                          <strong>
+                            ${escapeHTML(
+                              user.full_name
+                            )}
+                          </strong>
+
+                          <span class="table-subtext">
+                            ${escapeHTML(
+                              user.corporate_email
+                              ||
+                              ''
+                            )}
+                          </span>
+
+                        </td>
+
+
+                        <td>
+
+                          <span class="status-pill waiting">
+
+                            ${
+                              user.role ===
+                              'LEADER'
+                                ? 'Liderança'
+                                : 'Gestor de RH'
+                            }
+
+                          </span>
+
+                        </td>
+
+
+                        <td>
+
+                          ${
+                            user.role ===
+                            'HR_MANAGER'
+
+                            ? 'Visão geral'
+
+                            : (
+                                regionals.length
+                                  ? escapeHTML(
+                                      regionals.join(', ')
+                                    )
+                                  : '-'
+                              )
+                          }
+
+                        </td>
+
+
+                        <td>
+
+                          ${
+                            user.role ===
+                            'HR_MANAGER'
+
+                            ? 'Todas'
+
+                            : (
+                                operations.length
+                                  ? escapeHTML(
+                                      operations.join(', ')
+                                    )
+                                  : '-'
+                              )
+                          }
+
+                        </td>
+
+
+                        <td>
+
+                          <span
+                            class="status-pill ${
+                              user.active
+                                ? 'success'
+                                : 'error'
+                            }"
+                          >
+
+                            ${
+                              user.active
+                                ? 'Ativo'
+                                : 'Inativo'
+                            }
+
+                          </span>
+
+                        </td>
+
+
+                        <td>
+
+                          <div class="row-actions">
+
+                            <button
+                              class="corporate-edit"
+                              type="button"
+                              data-id="${user.id}"
+                            >
+                              Editar
+                            </button>
+
+
+                            <button
+                              class="corporate-toggle"
+                              type="button"
+                              data-id="${user.id}"
+                              data-active="${user.active}"
+                            >
+                              ${
+                                user.active
+                                  ? 'Inativar'
+                                  : 'Ativar'
+                              }
+                            </button>
+
+                          </div>
+
+                        </td>
+
+                      </tr>
+
+                    `;
+
+                  }
+                )
+                .join('')
+
+            : `
+
+                <tr>
+                  <td colspan="6">
+                    Nenhum acesso encontrado.
+                  </td>
+                </tr>
+
+              `
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+
+    ${renderPaginationHTML(
+      corporateCurrentPage,
+      totalPages,
+      'corporate-pagination'
+    )}
+
+  `;
+
+
+  container
+    .querySelectorAll(
+      '.corporate-edit'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            openCorporateUserEditModal(
+              button.dataset.id
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
+      '.corporate-toggle'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            toggleCorporateUserStatus(
+              button.dataset.id,
+              button.dataset.active
+              !== 'true'
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  bindPagination(
+    container,
+    'corporate-pagination',
+    page => {
+
+      corporateCurrentPage =
+        page;
+
+      renderCorporateUsersManager();
+
+    }
+  );
+
+}
+
+
+// ============================================================
+// NOVO ACESSO CORPORATIVO
+// ============================================================
+
+function openCorporateUserCreateModal() {
+
+  const activeOperations =
+    corporateOperationsCache
+      .filter(
+        operation =>
+          operation.active
+      );
+
+
+  openGenericModal(`
+
+    <div class="modal-header">
+
+      <div>
+
+        <h2>
+          Novo Acesso Corporativo
+        </h2>
+
+        <p>
+          Cadastre uma Liderança ou Gestor de RH.
+        </p>
+
+      </div>
+
+      <button
+        id="closeGenericModalButton"
+        class="modal-close"
+        type="button"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <form
+      id="newCorporateUserForm"
+      style="padding: 24px;"
+    >
+
+
+      <div class="form-group">
+
+        <label>
+          Nome completo
+        </label>
+
+        <input
+          id="newCorporateName"
+          type="text"
+          required
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          E-mail Shopee
+        </label>
+
+        <input
+          id="newCorporateEmail"
+          type="email"
+          placeholder="nome@shopee.com"
+          required
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          Perfil
+        </label>
+
+        <select
+          id="newCorporateRole"
+          required
+        >
+
+          <option value="">
+            Selecione
+          </option>
+
+          <option value="LEADER">
+            Líder
+          </option>
+
+          <option value="HR_MANAGER">
+            Gestor de RH
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          Senha inicial
+        </label>
+
+        <input
+          id="newCorporatePassword"
+          type="password"
+          minlength="8"
+          required
+        >
+
+      </div>
+
+
+      <div
+        id="newCorporateOperationsField"
+        class="form-group hidden"
+      >
+
+        <label>
+          Operações da liderança
+        </label>
+
+        <div class="operations-checkbox-list">
+
+          ${
+            activeOperations
+              .map(
+                operation => `
+
+                  <label class="operation-checkbox">
+
+                    <input
+                      type="checkbox"
+                      name="newCorporateOperation"
+                      value="${operation.id}"
+                    >
+
+                    <span>
+
+                      ${
+                        escapeHTML(
+                          operation.regionals
+                            ?.name
+                          ||
+                          'Sem Regional'
+                        )
+                      }
+                      ·
+                      ${
+                        escapeHTML(
+                          operation.name
+                        )
+                      }
+
+                    </span>
+
+                  </label>
+
+                `
+              )
+              .join('')
+          }
+
+        </div>
+
+      </div>
+
+
+      <button
+        id="createCorporateUserButton"
+        class="primary-action-button full-button"
+        type="submit"
+      >
+        Criar usuário
+      </button>
+
+    </form>
+
+  `);
+
+
+  document
+    .getElementById(
+      'newCorporateRole'
+    )
+    ?.addEventListener(
+      'change',
+      event => {
+
+        document
+          .getElementById(
+            'newCorporateOperationsField'
+          )
+          ?.classList
+          .toggle(
+            'hidden',
+            event.target.value !==
+            'LEADER'
+          );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'newCorporateUserForm'
+    )
+    ?.addEventListener(
+      'submit',
+      createCorporateUserFromModal
+    );
+
+}
+
+
+async function createCorporateUserFromModal(
+  event
+) {
+
+  event.preventDefault();
+
+
+  const fullName =
+    document
+      .getElementById(
+        'newCorporateName'
+      )
+      .value
+      .trim();
+
+
+  const email =
+    document
+      .getElementById(
+        'newCorporateEmail'
+      )
+      .value
+      .trim()
+      .toLowerCase();
+
+
+  const role =
+    document
+      .getElementById(
+        'newCorporateRole'
+      )
+      .value;
+
+
+  const password =
+    document
+      .getElementById(
+        'newCorporatePassword'
+      )
+      .value;
+
+
+  const operationIds =
+    Array.from(
+      document.querySelectorAll(
+        'input[name="newCorporateOperation"]:checked'
+      )
+    )
+      .map(
+        item =>
+          item.value
+      );
+
+
+  if (
+    !email.endsWith(
+      '@shopee.com'
+    )
+  ) {
+
+    alert(
+      'Utilize um e-mail corporativo @shopee.com.'
+    );
+
+    return;
+
+  }
+
+
+  if (
+    role === 'LEADER'
+    &&
+    operationIds.length === 0
+  ) {
+
+    alert(
+      'Selecione pelo menos uma operação para o líder.'
+    );
+
+    return;
+
+  }
+
+
+  const button =
+    document.getElementById(
+      'createCorporateUserButton'
+    );
+
+
+  button.disabled =
+    true;
+
+
+  button.textContent =
+    'Criando usuário...';
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await journeySupabase
+        .functions
+        .invoke(
+          'create-corporate-user',
+          {
+            body: {
+
+              fullName,
+              email,
+              password,
+              role,
+              operationIds
+
+            }
+          }
+        );
+
+
+    if (error) {
+
+      throw new Error(
+        await readEdgeFunctionError(
+          error,
+          'Não foi possível criar o usuário.'
+        )
+      );
+
+    }
+
+
+    if (
+      !data?.success
+    ) {
+
+      throw new Error(
+        data?.error
+        ||
+        'Não foi possível criar o usuário.'
+      );
+
+    }
+
+
+    closeGenericModal();
+
+
+    alert(
+      'Usuário criado com sucesso.'
+    );
+
+
+    await fetchCorporateUsersManager();
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+    alert(
+      error.message
+    );
+
+  }
+
+  finally {
+
+    if (button) {
+
+      button.disabled =
+        false;
+
+      button.textContent =
+        'Criar usuário';
+
+    }
+
+  }
+
+}
+
+
+// ============================================================
+// EDITAR ACESSO CORPORATIVO
+// ============================================================
+
+function openCorporateUserEditModal(
+  id
+) {
+
+  const user =
+    corporateUsersCache.find(
+      item =>
+        item.id === id
+    );
+
+
+  if (!user) {
+    return;
+  }
+
+
+  const selectedOperations =
+    new Set(
+      (
+        user.leader_operations
+        ||
+        []
+      )
+        .map(
+          link =>
+            link.operation_id
+        )
+    );
+
+
+  openGenericModal(`
+
+    <div class="modal-header">
+
+      <div>
+
+        <h2>
+          Editar Acesso
+        </h2>
+
+        <p>
+          ${escapeHTML(
+            user.corporate_email || ''
+          )}
+        </p>
+
+      </div>
+
+      <button
+        id="closeGenericModalButton"
+        class="modal-close"
+        type="button"
+      >
+        ×
+      </button>
+
+    </div>
+
+
+    <form
+      id="editCorporateUserForm"
+      style="padding:24px;"
+    >
+
+
+      <div class="form-group">
+
+        <label>
+          Nome
+        </label>
+
+        <input
+          id="editCorporateName"
+          type="text"
+          value="${escapeHTML(
+            user.full_name
+          )}"
+          required
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label>
+          Perfil
+        </label>
+
+        <input
+          type="text"
+          value="${
+            user.role === 'LEADER'
+              ? 'Liderança'
+              : 'Gestor de RH'
+          }"
+          disabled
+        >
+
+      </div>
+
+
+      ${
+        user.role ===
+        'LEADER'
+
+        ? `
+
+          <div class="form-group">
+
+            <label>
+              Operações
+            </label>
+
+            <div class="operations-checkbox-list">
+
+              ${
+                corporateOperationsCache
+                  .filter(
+                    operation =>
+                      operation.active
+                      ||
+                      selectedOperations
+                        .has(operation.id)
+                  )
+                  .map(
+                    operation => `
+
+                      <label class="operation-checkbox">
+
+                        <input
+                          type="checkbox"
+                          name="editCorporateOperation"
+                          value="${operation.id}"
+                          ${
+                            selectedOperations
+                              .has(operation.id)
+                              ? 'checked'
+                              : ''
+                          }
+                        >
+
+                        <span>
+
+                          ${escapeHTML(
+                            operation.regionals
+                              ?.name
+                            ||
+                            'Sem Regional'
+                          )}
+                          ·
+                          ${escapeHTML(
+                            operation.name
+                          )}
+
+                        </span>
+
+                      </label>
+
+                    `
+                  )
+                  .join('')
+              }
+
+            </div>
+
+          </div>
+
+        `
+
+        : ''
+      }
+
+
+      <button
+        class="primary-action-button full-button"
+        type="submit"
+      >
+        Salvar alterações
+      </button>
+
+    </form>
+
+  `);
+
+
+  document
+    .getElementById(
+      'editCorporateUserForm'
+    )
+    ?.addEventListener(
+      'submit',
+      async event => {
+
+        event.preventDefault();
+
+
+        const name =
+          document
+            .getElementById(
+              'editCorporateName'
+            )
+            .value
+            .trim();
+
+
+        try {
+
+          const {
+            error: profileError
+          } =
+            await journeySupabase
+              .from('profiles')
+              .update({
+                full_name: name
+              })
+              .eq(
+                'id',
+                id
+              );
+
+
+          if (profileError) {
+            throw profileError;
+          }
+
+
+          if (
+            user.role ===
+            'LEADER'
+          ) {
+
+            const operationIds =
+              Array.from(
+                document.querySelectorAll(
+                  'input[name="editCorporateOperation"]:checked'
+                )
+              )
+                .map(
+                  item =>
+                    item.value
+                );
+
+
+            if (!operationIds.length) {
+
+              alert(
+                'O líder precisa possuir pelo menos uma operação.'
+              );
+
+              return;
+
+            }
+
+
+            const {
+              error: deleteError
+            } =
+              await journeySupabase
+                .from(
+                  'leader_operations'
+                )
+                .delete()
+                .eq(
+                  'leader_id',
+                  id
+                );
+
+
+            if (deleteError) {
+              throw deleteError;
+            }
+
+
+            const {
+              error: insertError
+            } =
+              await journeySupabase
+                .from(
+                  'leader_operations'
+                )
+                .insert(
+                  operationIds.map(
+                    operationId => ({
+
+                      leader_id:
+                        id,
+
+                      operation_id:
+                        operationId
+
+                    })
+                  )
+                );
+
+
+            if (insertError) {
+              throw insertError;
+            }
+
+          }
+
+
+          closeGenericModal();
+
+
+          await fetchCorporateUsersManager();
+
+        }
+
+        catch (error) {
+
+          console.error(error);
+
+          alert(
+            error.message
+          );
+
+        }
+
+      }
+    );
+
+}
+
+
+async function toggleCorporateUserStatus(
+  id,
+  active
+) {
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('profiles')
+      .update({
+        active
+      })
+      .eq(
+        'id',
+        id
+      );
+
+
+  if (error) {
+
+    alert(
+      error.message
+    );
+
+    return;
+
+  }
+
+
+  await fetchCorporateUsersManager();
+
+}
+
+
+// ============================================================
+// CHECKPOINTS
+// ============================================================
 
 function openCheckpointSettings() {
 
   alert(
-    'Configuração dos checkpoints será implementada na próxima etapa.'
+    'Configuração dos checkpoints será a próxima etapa.'
   );
 
 }
+
+
+// ============================================================
+// MODAL GENÉRICO
+// ============================================================
+
+function openGenericModal(content) {
+
+  closeGenericModal();
+
+
+  const wrapper =
+    document.createElement(
+      'div'
+    );
+
+
+  wrapper.id =
+    'genericModalOverlay';
+
+
+  wrapper.className =
+    'modal-overlay';
+
+
+  wrapper.innerHTML = `
+
+    <div class="import-modal">
+      ${content}
+    </div>
+
+  `;
+
+
+  document.body
+    .appendChild(
+      wrapper
+    );
+
+
+  document
+    .getElementById(
+      'closeGenericModalButton'
+    )
+    ?.addEventListener(
+      'click',
+      closeGenericModal
+    );
+
+
+  wrapper.addEventListener(
+    'click',
+    event => {
+
+      if (
+        event.target ===
+        wrapper
+      ) {
+
+        closeGenericModal();
+
+      }
+
+    }
+  );
+
+}
+
+
+function closeGenericModal() {
+
+  document
+    .getElementById(
+      'genericModalOverlay'
+    )
+    ?.remove();
+
+}
+
+
+// ============================================================
+// PAGINAÇÃO
+// ============================================================
+
+function renderPaginationHTML(
+  currentPage,
+  totalPages,
+  className
+) {
+
+  if (
+    totalPages <= 1
+  ) {
+    return '';
+  }
+
+
+  return `
+
+    <div
+      class="settings-pagination ${className}"
+      style="
+        display:flex;
+        align-items:center;
+        justify-content:flex-end;
+        gap:6px;
+        margin-top:16px;
+      "
+    >
+
+      <button
+        type="button"
+        data-page="${
+          Math.max(
+            1,
+            currentPage - 1
+          )
+        }"
+        ${
+          currentPage === 1
+            ? 'disabled'
+            : ''
+        }
+      >
+        ‹
+      </button>
+
+
+      <span
+        style="
+          font-size:10px;
+          color:var(--text-secondary);
+        "
+      >
+        Página ${currentPage}
+        de ${totalPages}
+      </span>
+
+
+      <button
+        type="button"
+        data-page="${
+          Math.min(
+            totalPages,
+            currentPage + 1
+          )
+        }"
+        ${
+          currentPage === totalPages
+            ? 'disabled'
+            : ''
+        }
+      >
+        ›
+      </button>
+
+    </div>
+
+  `;
+
+}
+
+
+function bindPagination(
+  container,
+  className,
+  callback
+) {
+
+  container
+    .querySelectorAll(
+      `.${className} button[data-page]`
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            if (
+              button.disabled
+            ) {
+              return;
+            }
+
+
+            callback(
+              Number(
+                button.dataset.page
+              )
+            );
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// EDGE FUNCTION ERROR
+// ============================================================
+
+async function readEdgeFunctionError(
+  error,
+  fallback
+) {
+
+  let message =
+    error?.message
+    ||
+    fallback;
+
+
+  if (
+    error?.context
+  ) {
+
+    try {
+
+      const body =
+        await error.context
+          .clone()
+          .json();
+
+
+      message =
+        body?.error
+        ||
+        body?.message
+        ||
+        message;
+
+    }
+
+    catch (_) {
+
+      try {
+
+        const text =
+          await error.context
+            .clone()
+            .text();
+
+
+        if (text) {
+          message = text;
+        }
+
+      }
+
+      catch (_) {}
+
+    }
+
+  }
+
+
+  return message;
+
+}
+
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function showPageLoading() {
+
+  pageContent.innerHTML = `
+
+    <div class="page-loading">
+      Carregando...
+    </div>
+
+  `;
+
+}
+
+
+function escapeHTML(value) {
+
+  if (
+    value === null
+    ||
+    value === undefined
+  ) {
+    return '';
+  }
+
+
+  return String(value)
+
+    .replace(
+      /&/g,
+      '&amp;'
+    )
+
+    .replace(
+      /</g,
+      '&lt;'
+    )
+
+    .replace(
+      />/g,
+      '&gt;'
+    )
+
+    .replace(
+      /"/g,
+      '&quot;'
+    )
+
+    .replace(
+      /'/g,
+      '&#039;'
+    );
+
+}
+
+
+function formatCPF(cpf) {
+
+  const value =
+    String(
+      cpf || ''
+    )
+      .replace(
+        /\D/g,
+        ''
+      );
+
+
+  if (
+    value.length !== 11
+  ) {
+    return value;
+  }
+
+
+  return value.replace(
+    /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
+    '$1.$2.$3-$4'
+  );
+
+}
+
+
+function formatDateBR(value) {
+
+  if (!value) {
+    return '-';
+  }
+
+
+  const parts =
+    String(value)
+      .split('-');
+
+
+  if (
+    parts.length !== 3
+  ) {
+    return value;
+  }
+
+
+  return (
+    parts[2]
+    +
+    '/'
+    +
+    parts[1]
+    +
+    '/'
+    +
+    parts[0]
+  );
+
+}
+
+
+// ============================================================
+// START
+// ============================================================
 
 initializeApp();
