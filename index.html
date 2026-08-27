@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Shopee Journey</title>
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+  <button
+    id="themeToggle"
+    class="theme-toggle"
+    type="button"
+    title="Alterar tema"
+  >
+    🌙
+  </button>
+
+  <main class="login-page">
+
+    <section class="login-card">
+
+      <div class="brand">
+
+        <div class="brand-icon">
+          S
+        </div>
+
+        <h1>
+          Shopee <span>Journey</span>
+        </h1>
+
+        <p>
+          Jornada de Acompanhamento de Novos Contratados
+        </p>
+
+      </div>
+
+
+      <div class="login-tabs">
+
+        <button
+          id="corporateTab"
+          class="login-tab active"
+          type="button"
+        >
+          Acesso Corporativo
+        </button>
+
+        <button
+          id="employeeTab"
+          class="login-tab"
+          type="button"
+        >
+          Colaborador
+        </button>
+
+      </div>
+
+
+      <form id="loginForm">
+
+        <div class="form-group">
+
+          <label id="loginLabel" for="login">
+            E-mail Shopee
+          </label>
+
+          <input
+            id="login"
+            type="email"
+            autocomplete="username"
+            placeholder="nome@shopee.com"
+            required
+          >
+
+        </div>
+
+
+        <div class="form-group">
+
+          <label for="password">
+            Senha
+          </label>
+
+          <div class="password-wrapper">
+
+            <input
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Digite sua senha"
+              required
+            >
+
+            <button
+              id="showPassword"
+              type="button"
+              class="show-password"
+            >
+              👁
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <div
+          id="loginMessage"
+          class="login-message"
+        ></div>
+
+
+        <button
+          id="loginButton"
+          class="primary-button"
+          type="submit"
+        >
+          Entrar
+        </button>
+
+      </form>
+
+
+      <div class="login-footer">
+
+        <p id="accessHelp">
+          Utilize seu e-mail corporativo Shopee.
+        </p>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+
+</body>
+</html>
