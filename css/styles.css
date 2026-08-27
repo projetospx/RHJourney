@@ -2860,3 +2860,367 @@ input {
   }
 
 }
+
+/* ============================================================
+   NOVA HOME DE CONFIGURAÇÕES
+============================================================ */
+
+.settings-home-grid {
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, 1fr);
+
+  gap: 15px;
+}
+
+
+.settings-home-card {
+
+  min-height: 115px;
+
+  display: grid;
+
+  grid-template-columns:
+    auto 1fr auto;
+
+  align-items: center;
+
+  gap: 15px;
+
+  padding: 20px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 13px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text);
+
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    .15s ease;
+}
+
+
+.settings-home-card:hover {
+
+  transform:
+    translateY(-2px);
+
+  border-color:
+    var(--shopee-orange);
+
+  box-shadow:
+    var(--shadow);
+}
+
+
+.settings-home-icon {
+
+  width: 45px;
+  height: 45px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border-radius: 11px;
+
+  background:
+    rgba(238,77,45,.10);
+
+  font-size: 20px;
+}
+
+
+.settings-home-card strong {
+
+  display: block;
+
+  margin-bottom: 4px;
+
+  font-size: 13px;
+}
+
+
+.settings-home-card span {
+
+  color:
+    var(--text-secondary);
+
+  font-size: 10px;
+}
+
+
+.settings-home-card b {
+
+  color:
+    var(--shopee-orange);
+
+  font-size: 10px;
+}
+
+
+/* ============================================================
+   GERENCIAMENTO
+============================================================ */
+
+.settings-manager-header {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 15px;
+
+  margin-bottom: 20px;
+}
+
+
+.settings-manager-header h2 {
+
+  margin:
+    0 0 3px;
+
+  font-size: 19px;
+}
+
+
+.settings-manager-header p {
+
+  margin: 0;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 11px;
+}
+
+
+.back-button {
+
+  min-height: 36px;
+
+  padding:
+    0 12px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 8px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text);
+
+  cursor: pointer;
+}
+
+
+.compact-create-form {
+
+  display: flex;
+
+  gap: 10px;
+
+  margin-bottom: 18px;
+}
+
+
+.operation-create-form {
+
+  display: grid;
+
+  grid-template-columns:
+    220px 1fr auto;
+}
+
+
+.compact-create-form input,
+.compact-create-form select,
+.settings-toolbar input,
+.settings-toolbar select {
+
+  min-height: 40px;
+
+  padding:
+    0 11px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 8px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text);
+
+  outline: none;
+}
+
+
+.compact-create-form input {
+
+  flex: 1;
+}
+
+
+.settings-toolbar {
+
+  display: flex;
+
+  gap: 10px;
+
+  margin:
+    15px 0;
+}
+
+
+.settings-toolbar input {
+
+  flex: 1;
+}
+
+
+.settings-toolbar select {
+
+  min-width: 220px;
+}
+
+
+.compact-settings-row {
+
+  min-height: 58px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content:
+    space-between;
+
+  gap: 15px;
+
+  padding:
+    10px 4px;
+
+  border-bottom:
+    1px solid var(--border);
+}
+
+
+.compact-settings-row strong {
+
+  display: block;
+
+  font-size: 11px;
+}
+
+
+.compact-settings-row span {
+
+  display: block;
+
+  margin-top: 2px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 9px;
+}
+
+
+.row-actions {
+
+  display: flex;
+
+  gap: 5px;
+}
+
+
+.row-actions button {
+
+  min-height: 30px;
+
+  padding:
+    0 9px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 6px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text-secondary);
+
+  font-size: 9px;
+
+  cursor: pointer;
+}
+
+
+.row-actions button:hover {
+
+  border-color:
+    var(--shopee-orange);
+
+  color:
+    var(--shopee-orange);
+}
+
+
+.row-actions .danger-action {
+
+  color:
+    #DC2626;
+}
+
+
+@media (max-width: 800px) {
+
+  .settings-home-grid {
+
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .operation-create-form {
+
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .compact-create-form,
+  .settings-toolbar {
+
+    flex-direction:
+      column;
+  }
+
+
+  .settings-toolbar select {
+
+    min-width: 0;
+  }
+
+}
