@@ -2857,18 +2857,13 @@ async function confirmEmployeeImport() {
 
 
   const validRows =
-    importRows
-      .filter(
-        row =>
-          validateImportRow(
-            row
-          ).length === 0
-      );
+    importRows.filter(
+      row =>
+        validateImportRow(row).length === 0
+    );
 
 
-  if (
-    validRows.length === 0
-  ) {
+  if (!validRows.length) {
 
     alert(
       'Nenhum registro válido para importar.'
@@ -2881,9 +2876,7 @@ async function confirmEmployeeImport() {
 
   if (button) {
 
-    button.disabled =
-      true;
-
+    button.disabled = true;
 
     button.textContent =
       'Importando...';
@@ -2905,8 +2898,7 @@ async function confirmEmployeeImport() {
             body: {
 
               fileName:
-                selectedImportFile
-                  ?.name
+                selectedImportFile?.name
                 ||
                 'planilha',
 
@@ -2918,24 +2910,105 @@ async function confirmEmployeeImport() {
         );
 
 
+    // ========================================================
+    // ERRO DA EDGE FUNCTION
+    // ========================================================
+
     if (error) {
 
       console.error(
+        'Erro bruto da Edge Function:',
         error
       );
 
-      throw error;
+
+      let detailedMessage =
+        error.message
+        ||
+        'Erro ao chamar a função.';
+
+
+      // FunctionsHttpError costuma trazer
+      // o Response dentro de error.context
+      if (error.context) {
+
+        try {
+
+          const responseBody =
+            await error.context.clone().json();
+
+
+          console.error(
+            'Resposta da Edge Function:',
+            responseBody
+          );
+
+
+          detailedMessage =
+            responseBody?.error
+            ||
+            responseBody?.message
+            ||
+            detailedMessage;
+
+        }
+
+        catch (jsonError) {
+
+          try {
+
+            const responseText =
+              await error.context.clone().text();
+
+
+            if (responseText) {
+
+              detailedMessage =
+                responseText;
+
+            }
+
+          }
+
+          catch (_) {
+
+            // mantém a mensagem original
+
+          }
+
+        }
+
+      }
+
+
+      throw new Error(
+        detailedMessage
+      );
 
     }
 
 
-    if (
-      !data ||
-      data.success !== true
-    ) {
+    console.log(
+      'Resposta da importação:',
+      data
+    );
+
+
+    if (!data) {
 
       throw new Error(
-        data?.error
+        'A Edge Function não retornou dados.'
+      );
+
+    }
+
+
+    if (data.success !== true) {
+
+      throw new Error(
+        data.error
+        ||
+        data.message
         ||
         'A importação não foi concluída.'
       );
@@ -2952,7 +3025,7 @@ async function confirmEmployeeImport() {
   catch (error) {
 
     console.error(
-      'Erro de importação:',
+      'ERRO FINAL DA IMPORTAÇÃO:',
       error
     );
 
@@ -2978,7 +3051,6 @@ async function confirmEmployeeImport() {
   }
 
 }
-
 
 // ============================================================
 // RESULTADO DA IMPORTAÇÃO
