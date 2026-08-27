@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Shopee Journey</title>
+
+  <link
+    rel="stylesheet"
+    href="css/styles.css"
+  >
+</head>
+
+<body class="app-body">
+
+  <!-- ======================================================
+       SIDEBAR
+  ======================================================= -->
+
+  <aside
+    id="sidebar"
+    class="sidebar"
+  >
+
+    <div class="sidebar-brand">
+
+      <div class="sidebar-logo">
+        S
+      </div>
+
+      <div class="sidebar-brand-text">
+        <strong>
+          Shopee Journey
+        </strong>
+
+        <span>
+          People Journey
+        </span>
+      </div>
+
+    </div>
+
+
+    <nav class="sidebar-menu">
+
+      <button
+        class="menu-item active"
+        data-page="dashboard"
+      >
+        <span>⌂</span>
+        Visão Geral
+      </button>
+
+
+      <button
+        class="menu-item admin-only"
+        data-page="new-employees"
+      >
+        <span>＋</span>
+        Novos Colaboradores
+      </button>
+
+
+      <button
+        class="menu-item"
+        data-page="journeys"
+      >
+        <span>↗</span>
+        Jornadas
+      </button>
+
+
+      <button
+        class="menu-item"
+        data-page="assessments"
+      >
+        <span>✓</span>
+        Avaliações
+      </button>
+
+
+      <button
+        class="menu-item"
+        data-page="pending"
+      >
+        <span>!</span>
+        Pendências
+
+        <span
+          id="pendingBadge"
+          class="menu-badge hidden"
+        >
+          0
+        </span>
+      </button>
+
+
+      <button
+        class="menu-item admin-only"
+        data-page="indicators"
+      >
+        <span>▥</span>
+        Indicadores
+      </button>
+
+
+      <div class="menu-divider"></div>
+
+
+      <button
+        class="menu-item admin-only"
+        data-page="settings"
+      >
+        <span>⚙</span>
+        Configurações
+      </button>
+
+    </nav>
+
+
+    <div class="sidebar-footer">
+
+      <div class="sidebar-profile">
+
+        <div
+          id="sidebarAvatar"
+          class="profile-avatar"
+        >
+          U
+        </div>
+
+        <div class="profile-info">
+
+          <strong id="sidebarName">
+            Carregando...
+          </strong>
+
+          <span id="sidebarRole">
+            ...
+          </span>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </aside>
+
+
+  <!-- ======================================================
+       CONTEÚDO
+  ======================================================= -->
+
+  <main class="app-main">
+
+    <!-- HEADER -->
+
+    <header class="app-header">
+
+      <div class="header-left">
+
+        <button
+          id="sidebarToggle"
+          class="icon-button mobile-menu"
+          type="button"
+        >
+          ☰
+        </button>
+
+        <div>
+
+          <h1 id="pageTitle">
+            Visão Geral
+          </h1>
+
+          <p id="pageSubtitle">
+            Acompanhe as jornadas dos novos colaboradores.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="header-actions">
+
+        <button
+          id="themeToggleApp"
+          class="icon-button"
+          title="Alterar tema"
+          type="button"
+        >
+          🌙
+        </button>
+
+
+        <button
+          id="logoutButton"
+          class="logout-button"
+          type="button"
+        >
+          Sair
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- ======================================================
+         CONTEÚDO DINÂMICO
+    ======================================================= -->
+
+    <section
+      id="pageContent"
+      class="page-content"
+    >
+
+      <div class="page-loading">
+        Carregando Shopee Journey...
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- ======================================================
+       SUPABASE
+  ======================================================= -->
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
