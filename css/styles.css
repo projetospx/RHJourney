@@ -2548,3 +2548,315 @@ input {
   }
 
 }
+
+/* ============================================================
+   CONFIGURAÇÕES / USUÁRIOS CORPORATIVOS
+============================================================ */
+
+.settings-grid {
+
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 18px;
+}
+
+
+.inline-form {
+
+  display: flex;
+
+  gap: 10px;
+
+  margin-bottom: 20px;
+}
+
+
+.inline-form input,
+.settings-form input,
+.settings-form select {
+
+  width: 100%;
+
+  min-height: 42px;
+
+  padding:
+    0 12px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 9px;
+
+  background:
+    var(--surface);
+
+  color:
+    var(--text);
+
+  outline: none;
+}
+
+
+.inline-form input:focus,
+.settings-form input:focus,
+.settings-form select:focus {
+
+  border-color:
+    var(--shopee-orange);
+
+}
+
+
+.settings-form
+.form-group {
+
+  margin-bottom: 14px;
+
+}
+
+
+.form-help {
+
+  display: block;
+
+  margin-top: 5px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 9px;
+}
+
+
+.settings-list-item {
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content:
+    space-between;
+
+  padding:
+    12px 0;
+
+  border-bottom:
+    1px solid var(--border);
+}
+
+
+.settings-list-item strong {
+
+  display: block;
+
+  font-size: 11px;
+
+}
+
+
+.settings-list-item span {
+
+  display: block;
+
+  margin-top: 3px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 9px;
+
+}
+
+
+.operations-checkbox-list {
+
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 8px;
+}
+
+
+.operation-checkbox {
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 10px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 8px;
+
+  cursor: pointer;
+}
+
+
+.operation-checkbox input {
+
+  width: auto;
+
+  min-height: auto;
+
+}
+
+
+.operation-checkbox span {
+
+  font-size: 10px;
+
+}
+
+
+.settings-section-divider {
+
+  height: 1px;
+
+  margin:
+    25px 0;
+
+  background:
+    var(--border);
+}
+
+
+.corporate-user-card {
+
+  display: flex;
+
+  gap: 11px;
+
+  padding:
+    12px 0;
+
+  border-bottom:
+    1px solid var(--border);
+}
+
+
+.corporate-user-avatar {
+
+  width: 38px;
+  height: 38px;
+
+  flex-shrink: 0;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background:
+    rgba(238,77,45,.12);
+
+  color:
+    var(--shopee-orange);
+
+  font-size: 10px;
+
+  font-weight: 800;
+}
+
+
+.corporate-user-info {
+
+  min-width: 0;
+
+  flex: 1;
+}
+
+
+.corporate-user-info > strong {
+
+  display: block;
+
+  font-size: 11px;
+}
+
+
+.corporate-user-info > span {
+
+  display: block;
+
+  margin-top: 2px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 9px;
+}
+
+
+.corporate-user-tags {
+
+  display: flex;
+
+  flex-wrap: wrap;
+
+  gap: 5px;
+
+  margin-top: 8px;
+}
+
+
+.operation-tag {
+
+  display: inline-flex;
+
+  padding:
+    4px 7px;
+
+  border-radius: 20px;
+
+  background:
+    var(--surface-secondary);
+
+  color:
+    var(--text-secondary);
+
+  font-size: 8px;
+}
+
+
+@media (max-width: 900px) {
+
+  .settings-grid {
+
+    grid-template-columns:
+      1fr;
+
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .inline-form {
+
+    flex-direction:
+      column;
+
+  }
+
+
+  .operations-checkbox-list {
+
+    grid-template-columns:
+      1fr;
+
+  }
+
+}
