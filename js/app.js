@@ -242,25 +242,21 @@ function applyRolePermissions() {
 // USUÁRIO
 // ============================================================
 
-function renderUser() {
+const roles = {
 
-  sidebarName.textContent =
-    currentProfile.full_name;
+  ADMIN_RH:
+    'ADM / RH',
 
+  HR_MANAGER:
+    'Gestor de RH',
 
-  const roles = {
+  LEADER:
+    'Liderança',
 
-    ADMIN_RH:
-      'ADM / RH',
+  EMPLOYEE:
+    'Colaborador'
 
-    LEADER:
-      'Liderança',
-
-    EMPLOYEE:
-      'Colaborador'
-
-  };
-
+};
 
   sidebarRole.textContent =
     roles[currentProfile.role]
@@ -335,16 +331,17 @@ async function loadDashboard() {
   showPageLoading();
 
 
-  if (
-    currentProfile.role ===
-    'ADMIN_RH'
-  ) {
+ if (
+  currentProfile.role === 'ADMIN_RH'
+  ||
+  currentProfile.role === 'HR_MANAGER'
+) {
 
-    await loadAdminDashboard();
+  await loadAdminDashboard();
 
-    return;
+  return;
 
-  }
+}
 
 
   if (
