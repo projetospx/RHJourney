@@ -1053,18 +1053,15 @@ async function openPage(page) {
 
     case 'new-employees':
 
-      pageTitle.textContent =
-        'Novos Colaboradores';
+  pageTitle.textContent =
+    'Novos Colaboradores';
 
-      pageSubtitle.textContent =
-        'Importe e prepare colaboradores antes de iniciar o acompanhamento.';
+  pageSubtitle.textContent =
+    'Importe e prepare colaboradores antes de iniciar o acompanhamento.';
 
-      renderComingSoon(
-        'Novos Colaboradores',
-        'Aqui faremos a importação por planilha e a vinculação das lideranças.'
-      );
+  await loadNewEmployeesPage();
 
-      break;
+  break;
 
 
     case 'journeys':
@@ -1468,5 +1465,1646 @@ function escapeHTML(value) {
 // ============================================================
 // START
 // ============================================================
+
+// ============================================================
+// NOVOS COLABORADORES
+// ============================================================
+
+let importRows = [];
+let selectedImportFile = null;
+
+
+// ============================================================
+// CARREGAR TELA
+// ============================================================
+
+async function loadNewEmployeesPage() {
+
+  if (
+    currentProfile.role !==
+    'ADMIN_RH'
+  ) {
+    return;
+  }
+
+
+  pageContent.innerHTML = `
+
+    <div class="module-header">
+
+      <div>
+
+        <h2>
+          Novos Colaboradores
+        </h2>
+
+        <p>
+          Importe colaboradores e prepare o início
+          das jornadas.
+        </p>
+
+      </div>
+
+      <button
+        class="primary-action-button"
+        onclick="openImportModal()"
+      >
+        + Importar planilha
+      </button>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+      <div class="panel-header">
+
+        <div>
+
+          <h3>
+            Aguardando início
+          </h3>
+
+          <p>
+            Colaboradores cadastrados que ainda
+            não iniciaram a jornada.
+          </p>
+
+        </div>
+
+      </div>
+
+      <div id="waitingEmployees">
+
+        <div class="page-loading">
+          Carregando colaboradores...
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <div
+      id="importModal"
+      class="modal-overlay hidden"
+    >
+
+      <div class="import-modal">
+
+        <div class="modal-header">
+
+          <div>
+
+            <h2>
+              Importar colaboradores
+            </h2>
+
+            <p>
+              Excel (.xlsx) ou CSV
+            </p>
+
+          </div>
+
+          <button
+            class="modal-close"
+            onclick="closeImportModal()"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <div id="importStepUpload">
+
+          <div
+            id="uploadArea"
+            class="upload-area"
+            onclick="
+              document
+                .getElementById('employeeFileInput')
+                .click()
+            "
+          >
+
+            <div class="upload-icon">
+              ↑
+            </div>
+
+            <strong>
+              Selecione a planilha
+            </strong>
+
+            <p>
+              Clique aqui para escolher o arquivo
+            </p>
+
+            <span>
+              XLSX ou CSV
+            </span>
+
+          </div>
+
+
+          <input
+            id="employeeFileInput"
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            hidden
+          >
+
+
+          <div class="template-info">
+
+            <strong>
+              Colunas esperadas
+            </strong>
+
+            <p>
+              NOME · CPF · DATA DE NASCIMENTO · BPO ·
+              DATA DE ADMISSÃO · EMAIL · TELEFONE ·
+              HUB/OPERAÇÃO · HORÁRIO/ESCALA
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div
+          id="importPreview"
+          class="hidden"
+        ></div>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  const fileInput =
+    document.getElementById(
+      'employeeFileInput'
+    );
+
+
+  fileInput.addEventListener(
+    'change',
+    handleEmployeeFile
+  );
+
+
+  await loadWaitingEmployees();
+
+}
+
+
+// ============================================================
+// MODAL
+// ============================================================
+
+function openImportModal() {
+
+  selectedImportFile =
+    null;
+
+  importRows =
+    [];
+
+
+  document
+    .getElementById(
+      'importModal'
+    )
+    .classList
+    .remove('hidden');
+
+
+  document
+    .getElementById(
+      'importStepUpload'
+    )
+    .classList
+    .remove('hidden');
+
+
+  document
+    .getElementById(
+      'importPreview'
+    )
+    .classList
+    .add('hidden');
+
+}
+
+
+function closeImportModal() {
+
+  document
+    .getElementById(
+      'importModal'
+    )
+    ?.classList
+    .add('hidden');
+
+}
+
+
+// ============================================================
+// NORMALIZAR CABEÇALHOS
+// ============================================================
+
+function normalizeHeader(
+  value
+) {
+
+  return String(value || '')
+    .trim()
+    .normalize('NFD')
+    .replace(
+      /[\u0300-\u036f]/g,
+      ''
+    )
+    .toUpperCase()
+    .replace(
+      /[^A-Z0-9]/g,
+      '_'
+    )
+    .replace(
+      /_+/g,
+      '_'
+    )
+    .replace(
+      /^_|_$/g,
+      ''
+    );
+
+}
+
+
+// ============================================================
+// CONVERTER DATAS
+// ============================================================
+
+function excelDateToISO(
+  value
+) {
+
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return '';
+  }
+
+
+  // Excel serial
+  if (
+    typeof value === 'number'
+  ) {
+
+    const parsed =
+      XLSX.SSF.parse_date_code(
+        value
+      );
+
+
+    if (!parsed) {
+      return '';
+    }
+
+
+    return (
+      String(parsed.y)
+      +
+      '-'
+      +
+      String(parsed.m)
+        .padStart(2, '0')
+      +
+      '-'
+      +
+      String(parsed.d)
+        .padStart(2, '0')
+    );
+
+  }
+
+
+  const text =
+    String(value)
+      .trim();
+
+
+  // YYYY-MM-DD
+  if (
+    /^\d{4}-\d{2}-\d{2}$/
+      .test(text)
+  ) {
+    return text;
+  }
+
+
+  // DD/MM/YYYY
+  const br =
+    text.match(
+      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+    );
+
+
+  if (br) {
+
+    return (
+      br[3]
+      +
+      '-'
+      +
+      br[2].padStart(
+        2,
+        '0'
+      )
+      +
+      '-'
+      +
+      br[1].padStart(
+        2,
+        '0'
+      )
+    );
+
+  }
+
+
+  return '';
+
+}
+
+
+// ============================================================
+// LER PLANILHA
+// ============================================================
+
+async function handleEmployeeFile(
+  event
+) {
+
+  const file =
+    event.target.files[0];
+
+
+  if (!file) {
+    return;
+  }
+
+
+  selectedImportFile =
+    file;
+
+
+  try {
+
+    const buffer =
+      await file.arrayBuffer();
+
+
+    const workbook =
+      XLSX.read(
+        buffer,
+        {
+          type:
+            'array',
+
+          cellDates:
+            false
+        }
+      );
+
+
+    const firstSheet =
+      workbook
+        .SheetNames[0];
+
+
+    const sheet =
+      workbook
+        .Sheets[
+          firstSheet
+        ];
+
+
+    const rawRows =
+      XLSX.utils
+        .sheet_to_json(
+          sheet,
+          {
+            defval:
+              ''
+          }
+        );
+
+
+    if (
+      rawRows.length === 0
+    ) {
+
+      throw new Error(
+        'A planilha está vazia.'
+      );
+
+    }
+
+
+    importRows =
+      rawRows.map(
+        mapSpreadsheetRow
+      );
+
+
+    renderImportPreview();
+
+  }
+
+  catch (error) {
+
+    alert(
+      error.message ||
+      'Não foi possível ler a planilha.'
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// MAPEAR LINHA
+// ============================================================
+
+function mapSpreadsheetRow(
+  original
+) {
+
+  const normalized = {};
+
+
+  for (
+    const [key, value]
+    of Object.entries(
+      original
+    )
+  ) {
+
+    normalized[
+      normalizeHeader(key)
+    ] =
+      value;
+
+  }
+
+
+  return {
+
+    nome:
+      normalized.NOME
+      ||
+      normalized.NOME_COMPLETO
+      ||
+      '',
+
+
+    cpf:
+      String(
+        normalized.CPF
+        ||
+        ''
+      )
+        .replace(
+          /\D/g,
+          ''
+        )
+        .padStart(
+          11,
+          '0'
+        ),
+
+
+    data_nascimento:
+      excelDateToISO(
+        normalized.DATA_DE_NASCIMENTO
+        ||
+        normalized.DATA_NASCIMENTO
+        ||
+        normalized.NASCIMENTO
+      ),
+
+
+    bpo:
+      String(
+        normalized.BPO
+        ||
+        ''
+      )
+        .trim(),
+
+
+    data_admissao:
+      excelDateToISO(
+        normalized.DATA_DE_ADMISSAO
+        ||
+        normalized.DATA_ADMISSAO
+        ||
+        normalized.ADMISSAO
+      ),
+
+
+    email:
+      String(
+        normalized.EMAIL
+        ||
+        normalized.E_MAIL
+        ||
+        ''
+      )
+        .trim()
+        .toLowerCase(),
+
+
+    telefone:
+      String(
+        normalized.TELEFONE
+        ||
+        normalized.CELULAR
+        ||
+        ''
+      )
+        .replace(
+          /\D/g,
+          ''
+        ),
+
+
+    operacao:
+      String(
+        normalized.HUB_OPERACAO
+        ||
+        normalized.HUB
+        ||
+        normalized.OPERACAO
+        ||
+        ''
+      )
+        .trim(),
+
+
+    horario_escala:
+      String(
+        normalized.HORARIO_ESCALA
+        ||
+        normalized.HORARIO
+        ||
+        normalized.ESCALA
+        ||
+        ''
+      )
+        .trim()
+
+  };
+
+}
+
+
+// ============================================================
+// VALIDAR LINHA NO FRONT
+// ============================================================
+
+function validateImportRow(
+  row
+) {
+
+  const errors = [];
+
+
+  if (!row.nome) {
+    errors.push(
+      'Nome'
+    );
+  }
+
+
+  if (
+    !row.cpf ||
+    row.cpf.length !== 11
+  ) {
+    errors.push(
+      'CPF'
+    );
+  }
+
+
+  if (
+    !row.data_nascimento
+  ) {
+    errors.push(
+      'Nascimento'
+    );
+  }
+
+
+  if (!row.bpo) {
+    errors.push(
+      'BPO'
+    );
+  }
+
+
+  if (
+    !row.data_admissao
+  ) {
+    errors.push(
+      'Admissão'
+    );
+  }
+
+
+  if (!row.email) {
+    errors.push(
+      'E-mail'
+    );
+  }
+
+
+  if (!row.telefone) {
+    errors.push(
+      'Telefone'
+    );
+  }
+
+
+  if (!row.operacao) {
+    errors.push(
+      'Operação'
+    );
+  }
+
+
+  if (
+    !row.horario_escala
+  ) {
+    errors.push(
+      'Horário/Escala'
+    );
+  }
+
+
+  return errors;
+
+}
+
+
+// ============================================================
+// PRÉVIA
+// ============================================================
+
+function renderImportPreview() {
+
+  const preview =
+    document.getElementById(
+      'importPreview'
+    );
+
+
+  const uploadStep =
+    document.getElementById(
+      'importStepUpload'
+    );
+
+
+  uploadStep
+    .classList
+    .add('hidden');
+
+
+  preview
+    .classList
+    .remove('hidden');
+
+
+  let valid =
+    0;
+
+
+  let invalid =
+    0;
+
+
+  const rowsHTML =
+    importRows.map(
+      (row, index) => {
+
+        const errors =
+          validateImportRow(
+            row
+          );
+
+
+        const isValid =
+          errors.length === 0;
+
+
+        if (isValid) {
+          valid++;
+        }
+        else {
+          invalid++;
+        }
+
+
+        return `
+
+          <tr>
+
+            <td>
+              ${index + 2}
+            </td>
+
+            <td>
+
+              <strong>
+                ${escapeHTML(
+                  row.nome ||
+                  'Não informado'
+                )}
+              </strong>
+
+            </td>
+
+            <td>
+              ${escapeHTML(
+                formatCPF(
+                  row.cpf
+                )
+              )}
+            </td>
+
+            <td>
+              ${escapeHTML(
+                row.bpo
+              )}
+            </td>
+
+            <td>
+              ${escapeHTML(
+                row.operacao
+              )}
+            </td>
+
+            <td>
+
+              ${
+                isValid
+
+                ? `
+                  <span class="status-pill success">
+                    Válido
+                  </span>
+                `
+
+                : `
+                  <span
+                    class="status-pill error"
+                    title="${escapeHTML(
+                      errors.join(', ')
+                    )}"
+                  >
+                    Incompleto
+                  </span>
+                `
+              }
+
+            </td>
+
+          </tr>
+
+        `;
+
+      }
+    )
+    .join('');
+
+
+  preview.innerHTML = `
+
+    <div class="import-summary">
+
+      <div>
+
+        <span>
+          Registros
+        </span>
+
+        <strong>
+          ${importRows.length}
+        </strong>
+
+      </div>
+
+
+      <div class="summary-valid">
+
+        <span>
+          Válidos
+        </span>
+
+        <strong>
+          ${valid}
+        </strong>
+
+      </div>
+
+
+      <div class="summary-error">
+
+        <span>
+          Com problemas
+        </span>
+
+        <strong>
+          ${invalid}
+        </strong>
+
+      </div>
+
+    </div>
+
+
+    <div class="import-file-name">
+
+      <span>
+        Arquivo:
+      </span>
+
+      <strong>
+        ${escapeHTML(
+          selectedImportFile?.name
+          ||
+          ''
+        )}
+      </strong>
+
+    </div>
+
+
+    <div class="table-wrapper">
+
+      <table class="journey-table">
+
+        <thead>
+
+          <tr>
+
+            <th>
+              Linha
+            </th>
+
+            <th>
+              Nome
+            </th>
+
+            <th>
+              CPF
+            </th>
+
+            <th>
+              BPO
+            </th>
+
+            <th>
+              HUB
+            </th>
+
+            <th>
+              Validação
+            </th>
+
+          </tr>
+
+        </thead>
+
+        <tbody>
+          ${rowsHTML}
+        </tbody>
+
+      </table>
+
+    </div>
+
+
+    <div class="import-actions">
+
+      <button
+        class="secondary-button"
+        onclick="resetImport()"
+      >
+        Escolher outro arquivo
+      </button>
+
+
+      <button
+        id="confirmImportButton"
+        class="primary-action-button"
+        onclick="confirmEmployeeImport()"
+        ${
+          valid === 0
+            ? 'disabled'
+            : ''
+        }
+      >
+        Confirmar importação
+      </button>
+
+    </div>
+
+  `;
+
+}
+
+
+// ============================================================
+// RESET
+// ============================================================
+
+function resetImport() {
+
+  importRows =
+    [];
+
+  selectedImportFile =
+    null;
+
+
+  document
+    .getElementById(
+      'employeeFileInput'
+    )
+    .value =
+      '';
+
+
+  document
+    .getElementById(
+      'importPreview'
+    )
+    .classList
+    .add('hidden');
+
+
+  document
+    .getElementById(
+      'importStepUpload'
+    )
+    .classList
+    .remove('hidden');
+
+}
+
+
+// ============================================================
+// IMPORTAR
+// ============================================================
+
+async function confirmEmployeeImport() {
+
+  const button =
+    document.getElementById(
+      'confirmImportButton'
+    );
+
+
+  const validRows =
+    importRows.filter(
+      row =>
+        validateImportRow(
+          row
+        ).length === 0
+    );
+
+
+  if (
+    validRows.length === 0
+  ) {
+
+    alert(
+      'Nenhum registro válido para importar.'
+    );
+
+    return;
+
+  }
+
+
+  button.disabled =
+    true;
+
+
+  button.textContent =
+    'Importando...';
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await journeySupabase
+        .functions
+        .invoke(
+          'import-employees',
+          {
+            body: {
+
+              fileName:
+                selectedImportFile
+                  ?.name
+                ||
+                'planilha',
+
+              rows:
+                validRows
+
+            }
+          }
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    if (
+      !data ||
+      data.success !== true
+    ) {
+
+      throw new Error(
+        data?.error ||
+        'A importação não foi concluída.'
+      );
+
+    }
+
+
+    renderImportResult(
+      data
+    );
+
+  }
+
+  catch (error) {
+
+    console.error(
+      error
+    );
+
+
+    alert(
+      error.message ||
+      'Erro ao importar colaboradores.'
+    );
+
+
+    button.disabled =
+      false;
+
+
+    button.textContent =
+      'Confirmar importação';
+
+  }
+
+}
+
+
+// ============================================================
+// RESULTADO DA IMPORTAÇÃO
+// ============================================================
+
+function renderImportResult(
+  result
+) {
+
+  const preview =
+    document.getElementById(
+      'importPreview'
+    );
+
+
+  const errorRows =
+    (
+      result.results
+      ||
+      []
+    )
+      .filter(
+        item =>
+          item.status ===
+          'ERROR'
+      );
+
+
+  preview.innerHTML = `
+
+    <div class="import-result">
+
+      <div
+        class="result-icon
+        ${
+          result.errors > 0
+            ? 'warning'
+            : 'success'
+        }"
+      >
+        ${
+          result.errors > 0
+            ? '!'
+            : '✓'
+        }
+      </div>
+
+
+      <h2>
+        Importação concluída
+      </h2>
+
+
+      <div class="result-stats">
+
+        <div>
+
+          <span>
+            Importados
+          </span>
+
+          <strong>
+            ${result.imported}
+          </strong>
+
+        </div>
+
+
+        <div>
+
+          <span>
+            Erros
+          </span>
+
+          <strong>
+            ${result.errors}
+          </strong>
+
+        </div>
+
+      </div>
+
+
+      ${
+        errorRows.length > 0
+
+        ? `
+
+          <div class="import-errors">
+
+            <strong>
+              Registros não importados
+            </strong>
+
+            ${
+              errorRows.map(
+                item => `
+
+                  <div class="import-error-row">
+
+                    <span>
+                      Linha
+                      ${item.row}
+                    </span>
+
+                    <strong>
+                      ${escapeHTML(
+                        item.name ||
+                        'Sem nome'
+                      )}
+                    </strong>
+
+                    <p>
+                      ${escapeHTML(
+                        item.error
+                      )}
+                    </p>
+
+                  </div>
+
+                `
+              )
+              .join('')
+            }
+
+          </div>
+
+        `
+
+        : ''
+      }
+
+
+      <button
+        class="primary-action-button"
+        onclick="finishImport()"
+      >
+        Concluir
+      </button>
+
+    </div>
+
+  `;
+
+}
+
+
+// ============================================================
+// FINALIZAR IMPORTAÇÃO
+// ============================================================
+
+async function finishImport() {
+
+  closeImportModal();
+
+  await loadNewEmployeesPage();
+
+  await loadDashboardCountsSilently();
+
+}
+
+
+// ============================================================
+// CARREGAR AGUARDANDO INÍCIO
+// ============================================================
+
+async function loadWaitingEmployees() {
+
+  const container =
+    document.getElementById(
+      'waitingEmployees'
+    );
+
+
+  if (!container) {
+    return;
+  }
+
+
+  const {
+    data,
+    error
+  } =
+    await journeySupabase
+      .from(
+        'employments'
+      )
+      .select(`
+        id,
+        admission_date,
+        work_schedule,
+        status,
+
+        people (
+          id,
+          full_name,
+          cpf,
+          email,
+          phone
+        ),
+
+        bpos (
+          id,
+          name
+        ),
+
+        operations (
+          id,
+          name
+        ),
+
+        profiles:leader_id (
+          id,
+          full_name
+        )
+      `)
+      .eq(
+        'status',
+        'WAITING'
+      )
+      .order(
+        'admission_date',
+        {
+          ascending:
+            false
+        }
+      );
+
+
+  if (error) {
+
+    container.innerHTML = `
+
+      <div class="system-error">
+
+        <p>
+          ${escapeHTML(
+            error.message
+          )}
+        </p>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  if (
+    !data ||
+    data.length === 0
+  ) {
+
+    container.innerHTML = `
+
+      <div class="empty-state">
+
+        <div class="empty-icon">
+          +
+        </div>
+
+        <strong>
+          Nenhum colaborador aguardando
+        </strong>
+
+        <p>
+          Importe uma planilha para começar.
+        </p>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  container.innerHTML = `
+
+    <div class="table-wrapper">
+
+      <table class="journey-table">
+
+        <thead>
+
+          <tr>
+
+            <th>
+              Colaborador
+            </th>
+
+            <th>
+              CPF
+            </th>
+
+            <th>
+              BPO
+            </th>
+
+            <th>
+              HUB
+            </th>
+
+            <th>
+              Admissão
+            </th>
+
+            <th>
+              Horário / Escala
+            </th>
+
+            <th>
+              Liderança
+            </th>
+
+            <th>
+              Status
+            </th>
+
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            data.map(
+              item => `
+
+                <tr>
+
+                  <td>
+
+                    <strong>
+                      ${escapeHTML(
+                        item.people
+                          ?.full_name
+                        ||
+                        ''
+                      )}
+                    </strong>
+
+                    <span class="table-subtext">
+                      ${escapeHTML(
+                        item.people
+                          ?.email
+                        ||
+                        ''
+                      )}
+                    </span>
+
+                  </td>
+
+
+                  <td>
+                    ${formatCPF(
+                      item.people
+                        ?.cpf
+                    )}
+                  </td>
+
+
+                  <td>
+                    ${escapeHTML(
+                      item.bpos
+                        ?.name
+                      ||
+                      '-'
+                    )}
+                  </td>
+
+
+                  <td>
+                    ${escapeHTML(
+                      item.operations
+                        ?.name
+                      ||
+                      '-'
+                    )}
+                  </td>
+
+
+                  <td>
+                    ${formatDateBR(
+                      item.admission_date
+                    )}
+                  </td>
+
+
+                  <td>
+                    ${escapeHTML(
+                      item.work_schedule
+                    )}
+                  </td>
+
+
+                  <td>
+
+                    ${
+                      item.profiles
+                        ?.full_name
+
+                      ? escapeHTML(
+                          item.profiles
+                            .full_name
+                        )
+
+                      : `
+                          <span class="status-pill warning">
+                            Não definido
+                          </span>
+                        `
+                    }
+
+                  </td>
+
+
+                  <td>
+
+                    <span class="status-pill waiting">
+                      Aguardando início
+                    </span>
+
+                  </td>
+
+                </tr>
+
+              `
+            )
+            .join('')
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  `;
+
+}
+
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function formatCPF(
+  cpf
+) {
+
+  const value =
+    String(cpf || '')
+      .replace(
+        /\D/g,
+        ''
+      );
+
+
+  if (
+    value.length !== 11
+  ) {
+    return value;
+  }
+
+
+  return value.replace(
+    /^(\d{3})(\d{3})(\d{3})(\d{2})$/,
+    '$1.$2.$3-$4'
+  );
+
+}
+
+
+function formatDateBR(
+  value
+) {
+
+  if (!value) {
+    return '-';
+  }
+
+
+  const parts =
+    value.split('-');
+
+
+  if (
+    parts.length !== 3
+  ) {
+    return value;
+  }
+
+
+  return (
+    parts[2]
+    +
+    '/'
+    +
+    parts[1]
+    +
+    '/'
+    +
+    parts[0]
+  );
+
+}
+
+
+async function loadDashboardCountsSilently() {
+
+  // usado apenas para futura atualização
+  // automática dos cards
+}
 
 initializeApp();
