@@ -1478,42 +1478,40 @@ let selectedImportFile = null;
 // CARREGAR TELA
 // ============================================================
 
-async function loadNewEmployeesPage() {
+<div class="module-header">
 
-  if (
-    currentProfile.role !==
-    'ADMIN_RH'
-  ) {
-    return;
-  }
+  <div>
 
+    <h2>
+      Novos Colaboradores
+    </h2>
 
-  pageContent.innerHTML = `
+    <p>
+      Importe colaboradores e prepare o início
+      das jornadas.
+    </p>
 
-    <div class="module-header">
+  </div>
 
-      <div>
+  <div class="module-actions">
 
-        <h2>
-          Novos Colaboradores
-        </h2>
+    <button
+      class="secondary-button"
+      onclick="downloadEmployeeTemplate()"
+    >
+      ↓ Baixar modelo
+    </button>
 
-        <p>
-          Importe colaboradores e prepare o início
-          das jornadas.
-        </p>
+    <button
+      class="primary-action-button"
+      onclick="openImportModal()"
+    >
+      + Importar planilha
+    </button>
 
-      </div>
+  </div>
 
-      <button
-        class="primary-action-button"
-        onclick="openImportModal()"
-      >
-        + Importar planilha
-      </button>
-
-    </div>
-
+</div>
 
     <section class="dashboard-panel">
 
@@ -1617,19 +1615,27 @@ async function loadNewEmployeesPage() {
 
           <div class="template-info">
 
-            <strong>
-              Colunas esperadas
-            </strong>
+  <div>
 
-            <p>
-              NOME · CPF · DATA DE NASCIMENTO · BPO ·
-              DATA DE ADMISSÃO · EMAIL · TELEFONE ·
-              HUB/OPERAÇÃO · HORÁRIO/ESCALA
-            </p>
+    <strong>
+      Utilize o modelo oficial
+    </strong>
 
-          </div>
+    <p>
+      Para evitar erros na importação, utilize
+      a planilha padrão do Shopee Journey.
+    </p>
 
-        </div>
+  </div>
+
+  <button
+    class="secondary-button"
+    onclick="downloadEmployeeTemplate()"
+  >
+    ↓ Baixar modelo
+  </button>
+
+</div>
 
 
         <div
@@ -1660,6 +1666,201 @@ async function loadNewEmployeesPage() {
 
 }
 
+// ============================================================
+// BAIXAR MODELO DE IMPORTAÇÃO
+// ============================================================
+
+function downloadEmployeeTemplate() {
+
+  // ----------------------------------------------------------
+  // ABA DE IMPORTAÇÃO
+  // ----------------------------------------------------------
+
+  const importData = [
+
+  [
+    'NOME',
+    'CPF',
+    'DATA DE NASCIMENTO',
+    'BPO',
+    'DATA DE ADMISSÃO',
+    'EMAIL',
+    'TELEFONE',
+    'HUB/OPERAÇÃO',
+    'HORÁRIO/ESCALA'
+  ]
+
+];
+
+    [
+      'João da Silva',
+      '12345678900',
+      '01/01/2000',
+      'NOME DA BPO',
+      '27/08/2026',
+      'joao@email.com',
+      '91999999999',
+      'HUB-LXX-01',
+      '06:00 às 14:20'
+    ]
+
+  ];
+
+
+  const importSheet =
+    XLSX.utils.aoa_to_sheet(
+      importData
+    );
+
+
+  // Largura das colunas
+  importSheet['!cols'] = [
+
+    { wch: 28 }, // Nome
+    { wch: 16 }, // CPF
+    { wch: 20 }, // Nascimento
+    { wch: 22 }, // BPO
+    { wch: 20 }, // Admissão
+    { wch: 30 }, // Email
+    { wch: 18 }, // Telefone
+    { wch: 22 }, // HUB
+    { wch: 25 }  // Horário
+
+  ];
+
+
+  // ----------------------------------------------------------
+  // ABA DE INSTRUÇÕES
+  // ----------------------------------------------------------
+
+  const instructions = [
+
+    [
+      'SHOPEE JOURNEY',
+      'MODELO DE IMPORTAÇÃO DE NOVOS COLABORADORES'
+    ],
+
+    [],
+
+    [
+      'CAMPO',
+      'ORIENTAÇÃO'
+    ],
+
+    [
+      'NOME',
+      'Nome completo do colaborador.'
+    ],
+
+    [
+      'CPF',
+      'Obrigatório. Informe os 11 números do CPF.'
+    ],
+
+    [
+      'DATA DE NASCIMENTO',
+      'Obrigatório. Utilizar o formato DD/MM/AAAA.'
+    ],
+
+    [
+      'BPO',
+      'Nome da BPO responsável pela contratação.'
+    ],
+
+    [
+      'DATA DE ADMISSÃO',
+      'Obrigatório. Utilizar o formato DD/MM/AAAA.'
+    ],
+
+    [
+      'EMAIL',
+      'E-mail pessoal ou cadastral do colaborador.'
+    ],
+
+    [
+      'TELEFONE',
+      'Telefone com DDD.'
+    ],
+
+    [
+      'HUB/OPERAÇÃO',
+      'Nome ou código da operação onde o colaborador atuará.'
+    ],
+
+    [
+      'HORÁRIO/ESCALA',
+      'Informe o horário e/ou escala do colaborador.'
+    ],
+
+    [],
+
+    [
+      'IMPORTANTE',
+      'Não altere os nomes das colunas da aba IMPORTAÇÃO.'
+    ],
+
+    [
+      'IMPORTANTE',
+      'O líder será vinculado posteriormente dentro do Shopee Journey.'
+    ],
+
+    [
+      'IMPORTANTE',
+      'A importação não inicia automaticamente a jornada do colaborador.'
+    ],
+
+    [
+      'IMPORTANTE',
+      'Após a importação, o colaborador ficará com status AGUARDANDO INÍCIO.'
+    ]
+
+  ];
+
+
+  const instructionsSheet =
+    XLSX.utils.aoa_to_sheet(
+      instructions
+    );
+
+
+  instructionsSheet['!cols'] = [
+    { wch: 24 },
+    { wch: 80 }
+  ];
+
+
+  // ----------------------------------------------------------
+  // CRIAR WORKBOOK
+  // ----------------------------------------------------------
+
+  const workbook =
+    XLSX.utils.book_new();
+
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    importSheet,
+    'IMPORTAÇÃO'
+  );
+
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    instructionsSheet,
+    'INSTRUÇÕES'
+  );
+
+
+  // ----------------------------------------------------------
+  // GERAR DOWNLOAD
+  // ----------------------------------------------------------
+
+  XLSX.writeFile(
+    workbook,
+    'Modelo_Importacao_Shopee_Journey.xlsx'
+  );
+
+}
 
 // ============================================================
 // MODAL
