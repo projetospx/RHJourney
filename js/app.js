@@ -1226,20 +1226,15 @@ async function openPage(page) {
 
     case 'settings':
 
-      pageTitle.textContent =
-        'Configurações';
+  pageTitle.textContent =
+    'Configurações';
 
+  pageSubtitle.textContent =
+    'Estrutura e acessos do Shopee Journey.';
 
-      pageSubtitle.textContent =
-        'Parâmetros administrativos do Shopee Journey.';
+  await loadSettingsPage();
 
-
-      renderComingSoon(
-        'Configurações',
-        'Aqui você poderá gerenciar líderes, BPOs, HUBs, perguntas e regras dos checkpoints.'
-      );
-
-      break;
+  break;
 
   }
 
@@ -3865,5 +3860,996 @@ function formatDateBR(value) {
 // ============================================================
 // START
 // ============================================================
+
+// ============================================================
+// CONFIGURAÇÕES
+// ============================================================
+
+async function loadSettingsPage() {
+
+  if (
+    currentProfile.role !==
+    'ADMIN_RH'
+  ) {
+
+    await loadDashboard();
+
+    return;
+
+  }
+
+
+  pageContent.innerHTML = `
+
+    <div class="module-header">
+
+      <div>
+
+        <h2>
+          Configurações
+        </h2>
+
+        <p>
+          Gerencie operações, lideranças
+          e acessos corporativos.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="settings-grid">
+
+
+      <!-- ==================================================
+           OPERAÇÕES
+      =================================================== -->
+
+      <section class="dashboard-panel">
+
+        <div class="panel-header">
+
+          <div>
+
+            <h3>
+              Operações / HUBs
+            </h3>
+
+            <p>
+              Cadastre as operações utilizadas
+              no acompanhamento.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <form
+          id="operationForm"
+          class="inline-form"
+        >
+
+          <input
+            id="operationName"
+            type="text"
+            placeholder="Ex.: HUB-LPA-03"
+            required
+          >
+
+
+          <button
+            type="submit"
+            class="primary-action-button"
+          >
+            + Cadastrar
+          </button>
+
+        </form>
+
+
+        <div id="operationsList">
+
+          <div class="page-loading">
+            Carregando operações...
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ==================================================
+           USUÁRIOS CORPORATIVOS
+      =================================================== -->
+
+      <section class="dashboard-panel">
+
+        <div class="panel-header">
+
+          <div>
+
+            <h3>
+              Usuários corporativos
+            </h3>
+
+            <p>
+              Cadastre Lideranças e
+              Gestores de RH.
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <form
+          id="corporateUserForm"
+          class="settings-form"
+        >
+
+
+          <div class="form-group">
+
+            <label>
+              Nome completo
+            </label>
+
+            <input
+              id="corporateUserName"
+              type="text"
+              placeholder="Nome completo"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              E-mail Shopee
+            </label>
+
+            <input
+              id="corporateUserEmail"
+              type="email"
+              placeholder="nome@shopee.com"
+              required
+            >
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              Perfil
+            </label>
+
+            <select
+              id="corporateUserRole"
+              required
+            >
+
+              <option value="">
+                Selecione
+              </option>
+
+              <option value="LEADER">
+                Líder
+              </option>
+
+              <option value="HR_MANAGER">
+                Gestor de RH
+              </option>
+
+            </select>
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label>
+              Senha inicial
+            </label>
+
+            <input
+              id="corporateUserPassword"
+              type="password"
+              minlength="8"
+              placeholder="Mínimo 8 caracteres"
+              required
+            >
+
+            <span class="form-help">
+              O usuário deverá alterar a senha
+              no primeiro acesso.
+            </span>
+
+          </div>
+
+
+          <div
+            id="leaderOperationsField"
+            class="form-group hidden"
+          >
+
+            <label>
+              Operações da liderança
+            </label>
+
+            <div
+              id="leaderOperationsOptions"
+              class="operations-checkbox-list"
+            ></div>
+
+          </div>
+
+
+          <button
+            id="createCorporateUserButton"
+            class="primary-action-button full-button"
+            type="submit"
+          >
+            Criar usuário
+          </button>
+
+        </form>
+
+
+        <div class="settings-section-divider"></div>
+
+
+        <div class="panel-header">
+
+          <div>
+
+            <h3>
+              Acessos cadastrados
+            </h3>
+
+          </div>
+
+        </div>
+
+
+        <div id="corporateUsersList">
+
+          <div class="page-loading">
+            Carregando usuários...
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+  `;
+
+
+  document
+    .getElementById(
+      'operationForm'
+    )
+    .addEventListener(
+      'submit',
+      createOperation
+    );
+
+
+  document
+    .getElementById(
+      'corporateUserForm'
+    )
+    .addEventListener(
+      'submit',
+      createCorporateUser
+    );
+
+
+  document
+    .getElementById(
+      'corporateUserRole'
+    )
+    .addEventListener(
+      'change',
+      handleCorporateRoleChange
+    );
+
+
+  await loadOperations();
+
+  await loadCorporateUsers();
+
+}
+
+
+// ============================================================
+// OPERAÇÕES
+// ============================================================
+
+async function loadOperations() {
+
+  const {
+    data,
+    error
+  } =
+    await journeySupabase
+      .from('operations')
+      .select(`
+        id,
+        name,
+        active
+      `)
+      .order(
+        'name'
+      );
+
+
+  const list =
+    document.getElementById(
+      'operationsList'
+    );
+
+
+  const options =
+    document.getElementById(
+      'leaderOperationsOptions'
+    );
+
+
+  if (error) {
+
+    if (list) {
+
+      list.innerHTML =
+        escapeHTML(
+          error.message
+        );
+
+    }
+
+    return;
+
+  }
+
+
+  if (list) {
+
+    if (
+      !data ||
+      data.length === 0
+    ) {
+
+      list.innerHTML = `
+
+        <div class="empty-state">
+
+          <strong>
+            Nenhuma operação cadastrada
+          </strong>
+
+          <p>
+            Cadastre seu primeiro HUB.
+          </p>
+
+        </div>
+
+      `;
+
+    }
+
+    else {
+
+      list.innerHTML =
+        data.map(
+          operation => `
+
+            <div class="settings-list-item">
+
+              <div>
+
+                <strong>
+                  ${escapeHTML(
+                    operation.name
+                  )}
+                </strong>
+
+                <span>
+                  ${
+                    operation.active
+                      ? 'Ativa'
+                      : 'Inativa'
+                  }
+                </span>
+
+              </div>
+
+            </div>
+
+          `
+        )
+        .join('');
+
+    }
+
+  }
+
+
+  if (options) {
+
+    options.innerHTML =
+      (
+        data || []
+      )
+        .filter(
+          operation =>
+            operation.active
+        )
+        .map(
+          operation => `
+
+            <label class="operation-checkbox">
+
+              <input
+                type="checkbox"
+                name="leaderOperation"
+                value="${operation.id}"
+              >
+
+              <span>
+                ${escapeHTML(
+                  operation.name
+                )}
+              </span>
+
+            </label>
+
+          `
+        )
+        .join('');
+
+  }
+
+}
+
+
+// ============================================================
+// CADASTRAR OPERAÇÃO
+// ============================================================
+
+async function createOperation(event) {
+
+  event.preventDefault();
+
+
+  const input =
+    document.getElementById(
+      'operationName'
+    );
+
+
+  const name =
+    input.value
+      .trim()
+      .toUpperCase();
+
+
+  if (!name) {
+
+    return;
+
+  }
+
+
+  const {
+    error
+  } =
+    await journeySupabase
+      .from('operations')
+      .insert({
+        name,
+        active: true
+      });
+
+
+  if (error) {
+
+    if (
+      error.code ===
+      '23505'
+    ) {
+
+      alert(
+        'Esta operação já está cadastrada.'
+      );
+
+    }
+
+    else {
+
+      alert(
+        error.message
+      );
+
+    }
+
+    return;
+
+  }
+
+
+  input.value = '';
+
+
+  await loadOperations();
+
+}
+
+
+// ============================================================
+// ALTERAR PERFIL DO CADASTRO
+// ============================================================
+
+function handleCorporateRoleChange() {
+
+  const role =
+    document.getElementById(
+      'corporateUserRole'
+    )
+    .value;
+
+
+  const field =
+    document.getElementById(
+      'leaderOperationsField'
+    );
+
+
+  if (
+    role ===
+    'LEADER'
+  ) {
+
+    field.classList
+      .remove('hidden');
+
+  }
+
+  else {
+
+    field.classList
+      .add('hidden');
+
+
+    document
+      .querySelectorAll(
+        'input[name="leaderOperation"]'
+      )
+      .forEach(
+        checkbox => {
+
+          checkbox.checked =
+            false;
+
+        }
+      );
+
+  }
+
+}
+
+
+// ============================================================
+// CRIAR USUÁRIO CORPORATIVO
+// ============================================================
+
+async function createCorporateUser(event) {
+
+  event.preventDefault();
+
+
+  const fullName =
+    document
+      .getElementById(
+        'corporateUserName'
+      )
+      .value
+      .trim();
+
+
+  const email =
+    document
+      .getElementById(
+        'corporateUserEmail'
+      )
+      .value
+      .trim()
+      .toLowerCase();
+
+
+  const role =
+    document
+      .getElementById(
+        'corporateUserRole'
+      )
+      .value;
+
+
+  const password =
+    document
+      .getElementById(
+        'corporateUserPassword'
+      )
+      .value;
+
+
+  const operationIds =
+    Array.from(
+      document.querySelectorAll(
+        'input[name="leaderOperation"]:checked'
+      )
+    )
+      .map(
+        item =>
+          item.value
+      );
+
+
+  if (
+    !email.endsWith(
+      '@shopee.com'
+    )
+  ) {
+
+    alert(
+      'Utilize um e-mail corporativo @shopee.com.'
+    );
+
+    return;
+
+  }
+
+
+  if (
+    role === 'LEADER'
+    &&
+    operationIds.length === 0
+  ) {
+
+    alert(
+      'Selecione pelo menos uma operação para o líder.'
+    );
+
+    return;
+
+  }
+
+
+  const button =
+    document.getElementById(
+      'createCorporateUserButton'
+    );
+
+
+  button.disabled =
+    true;
+
+
+  button.textContent =
+    'Criando usuário...';
+
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await journeySupabase
+        .functions
+        .invoke(
+          'create-corporate-user',
+          {
+            body: {
+              fullName,
+              email,
+              password,
+              role,
+              operationIds
+            }
+          }
+        );
+
+
+    if (error) {
+
+      let message =
+        error.message;
+
+
+      if (
+        error.context
+      ) {
+
+        try {
+
+          const body =
+            await error.context
+              .clone()
+              .json();
+
+
+          message =
+            body?.error
+            ||
+            message;
+
+        }
+
+        catch (_) {}
+
+      }
+
+
+      throw new Error(
+        message
+      );
+
+    }
+
+
+    if (
+      !data?.success
+    ) {
+
+      throw new Error(
+        data?.error
+        ||
+        'Não foi possível criar o usuário.'
+      );
+
+    }
+
+
+    alert(
+      'Usuário criado com sucesso.'
+    );
+
+
+    document
+      .getElementById(
+        'corporateUserForm'
+      )
+      .reset();
+
+
+    handleCorporateRoleChange();
+
+
+    await loadCorporateUsers();
+
+  }
+
+  catch (error) {
+
+    console.error(
+      error
+    );
+
+
+    alert(
+      error.message
+    );
+
+  }
+
+  finally {
+
+    button.disabled =
+      false;
+
+
+    button.textContent =
+      'Criar usuário';
+
+  }
+
+}
+
+
+// ============================================================
+// LISTAR USUÁRIOS CORPORATIVOS
+// ============================================================
+
+async function loadCorporateUsers() {
+
+  const container =
+    document.getElementById(
+      'corporateUsersList'
+    );
+
+
+  if (!container) {
+
+    return;
+
+  }
+
+
+  const {
+    data,
+    error
+  } =
+    await journeySupabase
+      .from('profiles')
+      .select(`
+        id,
+        full_name,
+        role,
+        corporate_email,
+        active,
+
+        leader_operations (
+          operation_id,
+
+          operations (
+            id,
+            name
+          )
+        )
+      `)
+      .in(
+        'role',
+        [
+          'LEADER',
+          'HR_MANAGER'
+        ]
+      )
+      .order(
+        'full_name'
+      );
+
+
+  if (error) {
+
+    container.innerHTML = `
+
+      <p>
+        ${escapeHTML(
+          error.message
+        )}
+      </p>
+
+    `;
+
+    return;
+
+  }
+
+
+  if (
+    !data ||
+    data.length === 0
+  ) {
+
+    container.innerHTML = `
+
+      <div class="empty-state">
+
+        <strong>
+          Nenhum acesso cadastrado
+        </strong>
+
+        <p>
+          Cadastre uma liderança ou
+          Gestor de RH acima.
+        </p>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  container.innerHTML =
+    data.map(
+      user => {
+
+        const roleLabel =
+          user.role ===
+          'LEADER'
+            ? 'Liderança'
+            : 'Gestor de RH';
+
+
+        const operations =
+          (
+            user.leader_operations
+            ||
+            []
+          )
+            .map(
+              link =>
+                link.operations
+                  ?.name
+            )
+            .filter(
+              Boolean
+            );
+
+
+        return `
+
+          <div class="corporate-user-card">
+
+            <div class="corporate-user-avatar">
+
+              ${getInitials(
+                user.full_name
+              )}
+
+            </div>
+
+
+            <div class="corporate-user-info">
+
+              <strong>
+                ${escapeHTML(
+                  user.full_name
+                )}
+              </strong>
+
+              <span>
+                ${escapeHTML(
+                  user.corporate_email
+                  ||
+                  ''
+                )}
+              </span>
+
+
+              <div class="corporate-user-tags">
+
+                <span class="status-pill waiting">
+                  ${roleLabel}
+                </span>
+
+
+                ${
+                  operations.map(
+                    operation => `
+
+                      <span class="operation-tag">
+                        ${escapeHTML(
+                          operation
+                        )}
+                      </span>
+
+                    `
+                  )
+                  .join('')
+                }
+
+              </div>
+
+            </div>
+
+          </div>
+
+        `;
+
+      }
+    )
+    .join('');
+
+}
 
 initializeApp();
