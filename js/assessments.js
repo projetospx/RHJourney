@@ -1,136 +1,96 @@
-// ============================================================
-// SHOPEE JOURNEY
-// AVALIAÇÕES
-// ============================================================
-
 (function () {
-
   'use strict';
 
-
   let employmentsCache = [];
-
   let submissionsCache = [];
 
+  const asArray = (value) =>
+    !value
+      ? []
+      : Array.isArray(value)
+        ? value
+        : [value];
 
-// ============================================================
-// RELACIONAMENTO
-// ============================================================
-
-  function asArray(value) {
-
-    if (!value) {
-      return [];
-    }
-
-    if (
-      Array.isArray(value)
-    ) {
-      return value;
-    }
-
-    return [value];
-
-  }
+  const asObject = (value) =>
+    !value
+      ? null
+      : Array.isArray(value)
+        ? value[0] || null
+        : value;
 
 
-  function asObject(value) {
+  // ============================================================
+  // ENTRADA PÚBLICA
+  // ============================================================
 
-    if (!value) {
-      return null;
-    }
+  window.loadAssessmentsPage = async function () {
 
-    if (
-      Array.isArray(value)
-    ) {
+    injectStyles();
 
-      return value[0]
-        ||
-        null;
-
-    }
-
-    return value;
-
-  }
+    showPageLoading();
 
 
-// ============================================================
-// ENTRADA PÚBLICA
-// ============================================================
+    try {
 
-  window.loadAssessmentsPage =
-    async function () {
+      if (
+        currentProfile.role ===
+        'EMPLOYEE'
+      ) {
 
-      injectStyles();
-
-      showPageLoading();
-
-
-      try {
-
-        if (
-          currentProfile.role ===
-          'EMPLOYEE'
-        ) {
-
-          await loadEmployee();
-
-          return;
-
-        }
-
-
-        if (
-          currentProfile.role ===
-          'LEADER'
-        ) {
-
-          await loadLeader();
-
-          return;
-
-        }
-
-
-        await loadManagement();
+        return await loadEmployee();
 
       }
 
-      catch (error) {
 
-        console.error(
-          'Avaliações:',
-          error
-        );
+      if (
+        currentProfile.role ===
+        'LEADER'
+      ) {
 
-
-        pageContent.innerHTML = `
-
-          <div class="system-error">
-
-            <h2>
-              Não foi possível carregar as Avaliações
-            </h2>
-
-            <p>
-              ${escapeHTML(
-                error.message
-              )}
-            </p>
-
-          </div>
-
-        `;
+        return await loadLeader();
 
       }
 
-    };
+
+      return await loadManagement();
+
+    }
+
+    catch (error) {
+
+      console.error(
+        'Avaliações:',
+        error
+      );
 
 
-// ============================================================
-// COLABORADOR
-// ============================================================
+      pageContent.innerHTML = `
+
+        <div class="system-error">
+
+          <h2>
+            Não foi possível carregar as Avaliações
+          </h2>
+
+          <p>
+            ${escapeHTML(
+              error.message ||
+              'Erro desconhecido.'
+            )}
+          </p>
+
+        </div>
+
+      `;
+
+    }
+
+  };
+
+
+  // ============================================================
+  // COLABORADOR
+  // ============================================================
 
   async function loadEmployee() {
 
@@ -143,7 +103,6 @@
         .select(`
           id,
           leader_id,
-          period_id,
           operation_id,
           admission_date,
           status,
@@ -155,8 +114,7 @@
 
           operations (
             id,
-            name,
-            use_period_filter
+            name
           ),
 
           leader:profiles!employments_leader_id_fkey (
@@ -179,8 +137,7 @@
         .order(
           'admission_date',
           {
-            ascending:
-              false
+            ascending: false
           }
         );
 
@@ -251,6 +208,7 @@
         employment
       );
 
+
       return;
 
     }
@@ -261,6 +219,7 @@
         journey
           .journey_checkpoints
       )
+        .slice()
         .sort(
           checkpointSort
         );
@@ -280,10 +239,7 @@
       checkpointIds.length
     ) {
 
-      const {
-        data: submissionData,
-        error: submissionError
-      } =
+      const result =
         await journeySupabase
           .from(
             'journey_assessment_submissions'
@@ -304,13 +260,15 @@
           );
 
 
-      if (submissionError) {
-        throw submissionError;
+      if (
+        result.error
+      ) {
+        throw result.error;
       }
 
 
       submissions =
-        submissionData ||
+        result.data ||
         [];
 
     }
@@ -325,9 +283,9 @@
   }
 
 
-// ============================================================
-// RENDER COLABORADOR
-// ============================================================
+  // ============================================================
+  // RENDER COLABORADOR
+  // ============================================================
 
   function renderEmployee(
     employment,
@@ -337,8 +295,8 @@
 
     const completed =
       submissions.filter(
-        item =>
-          item.status ===
+        submission =>
+          submission.status ===
           'SUBMITTED'
       )
         .length;
@@ -403,35 +361,34 @@
           ${
             checkpoints.length
 
-            ? checkpoints.map(
-                checkpoint => {
+              ? checkpoints
+                  .map(
+                    checkpoint => {
 
-                  const submission =
-                    submissions.find(
-                      item =>
-                        item.checkpoint_id ===
-                        checkpoint.id
-                    );
+                      const submission =
+                        submissions.find(
+                          item =>
+                            item.checkpoint_id ===
+                            checkpoint.id
+                        );
 
 
-                  return renderCheckpoint(
-                    checkpoint,
-                    submission
-                  );
+                      return renderCheckpoint(
+                        checkpoint,
+                        submission
+                      );
 
-                }
-              )
-                .join('')
+                    }
+                  )
+                  .join('')
 
-            : `
+              : `
 
-                <div class="assessment-empty">
+                  <div class="assessment-empty">
+                    Nenhum checkpoint encontrado.
+                  </div>
 
-                  Nenhum checkpoint encontrado.
-
-                </div>
-
-              `
+                `
           }
 
         </div>
@@ -458,8 +415,7 @@
             () => {
 
               openEmployeeAssessment(
-                button
-                  .dataset
+                button.dataset
                   .answerCheckpoint
               );
 
@@ -482,8 +438,7 @@
             () => {
 
               viewSubmission(
-                button
-                  .dataset
+                button.dataset
                   .viewSubmission
               );
 
@@ -496,9 +451,9 @@
   }
 
 
-// ============================================================
-// CHECKPOINT DO COLABORADOR
-// ============================================================
+  // ============================================================
+  // CHECKPOINT
+  // ============================================================
 
   function renderCheckpoint(
     checkpoint,
@@ -521,11 +476,9 @@
         <div class="assessment-checkpoint">
 
           <b class="checkpoint-code">
-
             ${escapeHTML(
               checkpoint.checkpoint
             )}
-
           </b>
 
 
@@ -574,11 +527,9 @@
         <div class="assessment-checkpoint">
 
           <b class="checkpoint-code">
-
             ${escapeHTML(
               checkpoint.checkpoint
             )}
-
           </b>
 
 
@@ -614,11 +565,9 @@
       <div class="assessment-checkpoint">
 
         <b class="checkpoint-code">
-
           ${escapeHTML(
             checkpoint.checkpoint
           )}
-
         </b>
 
 
@@ -630,12 +579,13 @@
               submission?.status ===
               'DRAFT'
 
-              ? 'Continuar avaliação'
+                ? 'Continuar avaliação'
 
-              : 'Avaliação disponível'
+                : 'Avaliação disponível'
             }
 
           </strong>
+
 
           <small>
 
@@ -643,9 +593,9 @@
               availability ===
               'OVERDUE'
 
-              ? 'Prazo original: '
+                ? 'Prazo original: '
 
-              : 'Prazo: '
+                : 'Prazo: '
             }
 
             ${formatDate(
@@ -661,7 +611,9 @@
           class="assessment-pill ${
             availability ===
             'OVERDUE'
+
               ? 'danger'
+
               : 'warning'
           }"
         >
@@ -670,14 +622,14 @@
             availability ===
             'OVERDUE'
 
-            ? '⚠ Em atraso'
+              ? '⚠ Em atraso'
 
-            : submission?.status ===
-              'DRAFT'
+              : submission?.status ===
+                'DRAFT'
 
-              ? 'Rascunho'
+                ? 'Rascunho'
 
-              : 'Disponível'
+                : 'Disponível'
           }
 
         </span>
@@ -693,9 +645,9 @@
             submission?.status ===
             'DRAFT'
 
-            ? 'Continuar'
+              ? 'Continuar'
 
-            : 'Responder'
+              : 'Responder'
           }
 
         </button>
@@ -707,9 +659,9 @@
   }
 
 
-// ============================================================
-// CARD DO LÍDER
-// ============================================================
+  // ============================================================
+  // CARD DE LIDERANÇA
+  // ============================================================
 
   function renderLeaderCard(
     employment
@@ -756,8 +708,7 @@
 
             <span>
               ${escapeHTML(
-                operation?.name
-                ||
+                operation?.name ||
                 ''
               )}
             </span>
@@ -821,9 +772,9 @@
   }
 
 
-// ============================================================
-// EVENTOS LÍDER DO COLABORADOR
-// ============================================================
+  // ============================================================
+  // EVENTOS DO CARD
+  // ============================================================
 
   function bindLeaderCard(
     employment
@@ -835,10 +786,13 @@
       )
       ?.addEventListener(
         'click',
-        () =>
+        () => {
+
           chooseLeader(
             employment
-          )
+          );
+
+        }
       );
 
 
@@ -848,18 +802,21 @@
       )
       ?.addEventListener(
         'click',
-        () =>
+        () => {
+
           chooseLeader(
             employment
-          )
+          );
+
+        }
       );
 
   }
 
 
-// ============================================================
-// ESCOLHER LÍDER
-// ============================================================
+  // ============================================================
+  // ESCOLHER LÍDER
+  // ============================================================
 
   async function chooseLeader(
     employment
@@ -937,45 +894,46 @@
       <div class="assessment-modal-body">
 
         ${
-          leaders.map(
-            leader => `
+          leaders
+            .map(
+              leader => `
 
-              <button
-                class="leader-option"
-                type="button"
-                data-leader-id="${leader.leader_id}"
-                data-leader-name="${escapeHTML(
-                  leader.full_name
-                )}"
-              >
-
-                <span class="leader-avatar">
-
-                  ${getInitials(
+                <button
+                  class="leader-option"
+                  type="button"
+                  data-leader-id="${leader.leader_id}"
+                  data-leader-name="${escapeHTML(
                     leader.full_name
-                  )}
+                  )}"
+                >
 
-                </span>
+                  <span class="leader-avatar">
 
-
-                <span>
-
-                  <strong>
-                    ${escapeHTML(
+                    ${getInitials(
                       leader.full_name
                     )}
-                  </strong>
 
-                  <small>
-                    Selecionar
-                  </small>
+                  </span>
 
-                </span>
 
-              </button>
+                  <span>
 
-            `
-          )
+                    <strong>
+                      ${escapeHTML(
+                        leader.full_name
+                      )}
+                    </strong>
+
+                    <small>
+                      Selecionar
+                    </small>
+
+                  </span>
+
+                </button>
+
+              `
+            )
             .join('')
         }
 
@@ -993,9 +951,9 @@
 
           button.addEventListener(
             'click',
-            async () => {
+            () => {
 
-              await setLeader(
+              setLeader(
                 employment,
                 button.dataset.leaderId,
                 button.dataset.leaderName
@@ -1010,9 +968,9 @@
   }
 
 
-// ============================================================
-// SALVAR LÍDER
-// ============================================================
+  // ============================================================
+  // SALVAR LÍDER
+  // ============================================================
 
   async function setLeader(
     employment,
@@ -1036,6 +994,7 @@
         .rpc(
           'set_employment_leader',
           {
+
             p_employment_id:
               employment.id,
 
@@ -1047,8 +1006,11 @@
 
             p_reason:
               employment.leader_id
+
                 ? 'Liderança alterada pelo colaborador.'
+
                 : 'Liderança indicada pelo colaborador.'
+
           }
         );
 
@@ -1072,9 +1034,9 @@
   }
 
 
-// ============================================================
-// ABRIR AVALIAÇÃO DO COLABORADOR
-// ============================================================
+  // ============================================================
+  // ABRIR AVALIAÇÃO DO COLABORADOR
+  // ============================================================
 
   async function openEmployeeAssessment(
     checkpointId
@@ -1112,9 +1074,9 @@
   }
 
 
-// ============================================================
-// LÍDER
-// ============================================================
+  // ============================================================
+  // LÍDER
+  // ============================================================
 
   async function loadLeader() {
 
@@ -1156,8 +1118,7 @@
         .order(
           'admission_date',
           {
-            ascending:
-              false
+            ascending: false
           }
         );
 
@@ -1185,10 +1146,7 @@
       checkpointIds.length
     ) {
 
-      const {
-        data: submissions,
-        error: submissionError
-      } =
+      const result =
         await journeySupabase
           .from(
             'journey_assessment_submissions'
@@ -1209,13 +1167,15 @@
           );
 
 
-      if (submissionError) {
-        throw submissionError;
+      if (
+        result.error
+      ) {
+        throw result.error;
       }
 
 
       submissionsCache =
-        submissions ||
+        result.data ||
         [];
 
     }
@@ -1226,9 +1186,9 @@
   }
 
 
-// ============================================================
-// RENDER LÍDER
-// ============================================================
+  // ============================================================
+  // RENDER LÍDER
+  // ============================================================
 
   function renderLeader() {
 
@@ -1376,146 +1336,137 @@
               ${
                 items.length
 
-                ? items.map(
-                    item => {
+                  ? items
+                      .map(
+                        item => {
 
-                      const employee =
-                        asObject(
-                          item
-                            .employment
-                            .people
-                        );
-
-
-                      const operation =
-                        asObject(
-                          item
-                            .employment
-                            .operations
-                        );
-
-
-                      return `
-
-                        <tr>
-
-                          <td>
-
-                            ${escapeHTML(
-                              employee
-                                ?.full_name
-                              ||
-                              ''
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${escapeHTML(
-                              operation
-                                ?.name
-                              ||
-                              '-'
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${escapeHTML(
+                          const employee =
+                            asObject(
                               item
-                                .checkpoint
-                                .checkpoint
-                            )}
-
-                          </td>
+                                .employment
+                                .people
+                            );
 
 
-                          <td>
-
-                            ${formatDate(
+                          const operation =
+                            asObject(
                               item
-                                .checkpoint
-                                .due_at
-                            )}
-
-                          </td>
+                                .employment
+                                .operations
+                            );
 
 
-                          <td>
+                          return `
 
-                            ${statusBadge(
-                              item.status
-                            )}
+                            <tr>
 
-                          </td>
+                              <td>
+                                ${escapeHTML(
+                                  employee?.full_name ||
+                                  ''
+                                )}
+                              </td>
 
 
-                          <td>
+                              <td>
+                                ${escapeHTML(
+                                  operation?.name ||
+                                  '-'
+                                )}
+                              </td>
 
-                            ${
-                              item.status ===
-                              'FUTURE'
 
-                              ? '—'
+                              <td>
+                                ${escapeHTML(
+                                  item
+                                    .checkpoint
+                                    .checkpoint
+                                )}
+                              </td>
 
-                              : item.status ===
-                                'SUBMITTED'
 
-                                ? `
+                              <td>
+                                ${formatDate(
+                                  item
+                                    .checkpoint
+                                    .due_at
+                                )}
+                              </td>
 
-                                  <button
-                                    class="assessment-outline"
-                                    type="button"
-                                    data-view-submission="${item.submission.id}"
-                                  >
-                                    Ver
-                                  </button>
 
-                                `
+                              <td>
+                                ${statusBadge(
+                                  item.status
+                                )}
+                              </td>
 
-                                : `
 
-                                  <button
-                                    class="primary-action-button"
-                                    type="button"
-                                    data-leader-checkpoint="${item.checkpoint.id}"
-                                  >
-                                    ${
-                                      item.status ===
-                                      'DRAFT'
-                                        ? 'Continuar'
-                                        : 'Responder'
-                                    }
-                                  </button>
+                              <td>
 
-                                `
-                            }
+                                ${
+                                  item.status ===
+                                  'FUTURE'
 
-                          </td>
+                                    ? '—'
 
-                        </tr>
+                                    : item.status ===
+                                      'SUBMITTED'
 
-                      `;
+                                      ? `
 
-                    }
-                  )
-                    .join('')
+                                          <button
+                                            class="assessment-outline"
+                                            type="button"
+                                            data-view-submission="${item.submission.id}"
+                                          >
+                                            Ver
+                                          </button>
 
-                : `
+                                        `
 
-                    <tr>
+                                      : `
 
-                      <td colspan="6">
-                        Nenhuma avaliação encontrada.
-                      </td>
+                                          <button
+                                            class="primary-action-button"
+                                            type="button"
+                                            data-leader-checkpoint="${item.checkpoint.id}"
+                                          >
 
-                    </tr>
+                                            ${
+                                              item.status ===
+                                              'DRAFT'
 
-                  `
+                                                ? 'Continuar'
+
+                                                : 'Responder'
+                                            }
+
+                                          </button>
+
+                                        `
+                                }
+
+                              </td>
+
+                            </tr>
+
+                          `;
+
+                        }
+                      )
+                      .join('')
+
+                  : `
+
+                      <tr>
+
+                        <td colspan="6">
+                          Nenhuma avaliação encontrada.
+                        </td>
+
+                      </tr>
+
+                    `
               }
 
             </tbody>
@@ -1549,8 +1500,7 @@
                     'get_or_create_leader_assessment',
                     {
                       p_checkpoint_id:
-                        button
-                          .dataset
+                        button.dataset
                           .leaderCheckpoint
                     }
                   );
@@ -1583,9 +1533,9 @@
   }
 
 
-// ============================================================
-// ADM / RH MANAGER
-// ============================================================
+  // ============================================================
+  // RH / GESTOR RH
+  // ============================================================
 
   async function loadManagement() {
 
@@ -1602,10 +1552,6 @@
 
           people (
             full_name
-          ),
-
-          bpos (
-            name
           ),
 
           operations (
@@ -1636,8 +1582,7 @@
         .order(
           'admission_date',
           {
-            ascending:
-              false
+            ascending: false
           }
         );
 
@@ -1665,10 +1610,7 @@
       checkpointIds.length
     ) {
 
-      const {
-        data: submissions,
-        error: submissionError
-      } =
+      const result =
         await journeySupabase
           .from(
             'journey_assessment_submissions'
@@ -1686,13 +1628,15 @@
           );
 
 
-      if (submissionError) {
-        throw submissionError;
+      if (
+        result.error
+      ) {
+        throw result.error;
       }
 
 
       submissionsCache =
-        submissions ||
+        result.data ||
         [];
 
     }
@@ -1703,9 +1647,9 @@
   }
 
 
-// ============================================================
-// RENDER GESTÃO
-// ============================================================
+  // ============================================================
+  // RENDER RH
+  // ============================================================
 
   function renderManagement() {
 
@@ -1739,10 +1683,10 @@
                     .find(
                       item =>
                         item.checkpoint_id ===
-                          checkpoint.id
+                        checkpoint.id
                         &&
                         item.respondent_type ===
-                          'EMPLOYEE'
+                        'EMPLOYEE'
                     );
 
 
@@ -1751,10 +1695,10 @@
                     .find(
                       item =>
                         item.checkpoint_id ===
-                          checkpoint.id
+                        checkpoint.id
                         &&
                         item.respondent_type ===
-                          'LEADER'
+                        'LEADER'
                     );
 
 
@@ -1842,137 +1786,132 @@
               ${
                 items.length
 
-                ? items.map(
-                    item => {
+                  ? items
+                      .map(
+                        item => {
 
-                      const employment =
-                        item.employment;
-
-
-                      const employee =
-                        asObject(
-                          employment.people
-                        );
-
-
-                      const operation =
-                        asObject(
-                          employment.operations
-                        );
-
-
-                      return `
-
-                        <tr>
-
-                          <td>
-
-                            <strong>
-
-                              ${escapeHTML(
-                                employee
-                                  ?.full_name
-                                ||
-                                ''
-                              )}
-
-                            </strong>
-
-                          </td>
-
-
-                          <td>
-
-                            ${escapeHTML(
-                              operation
-                                ?.name
-                              ||
-                              '-'
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            <strong>
-
-                              ${escapeHTML(
-                                item
-                                  .checkpoint
-                                  .checkpoint
-                              )}
-
-                            </strong>
-
-                          </td>
-
-
-                          <td>
-
-                            ${sideStatus(
-                              item.checkpoint,
-                              item.employeeSubmission,
-                              false
-                            )}
-
-                          </td>
-
-
-                          <td>
-
-                            ${
-                              !employment.leader_id
-                              &&
-                              !item.leaderSubmission
-
-                              ? `
-
-                                <span class="assessment-pill danger">
-                                  ⚠ Sem líder
-                                </span>
-
-                              `
-
-                              : sideStatus(
-                                  item.checkpoint,
-                                  item.leaderSubmission,
-                                  true
-                                )
-                            }
-
-                          </td>
-
-
-                          <td>
-
-                            ${formatDate(
+                          const employee =
+                            asObject(
                               item
-                                .checkpoint
-                                .due_at
-                            )}
+                                .employment
+                                .people
+                            );
 
-                          </td>
 
-                        </tr>
+                          const operation =
+                            asObject(
+                              item
+                                .employment
+                                .operations
+                            );
 
-                      `;
 
-                    }
-                  )
-                    .join('')
+                          return `
 
-                : `
+                            <tr>
 
-                    <tr>
+                              <td>
 
-                      <td colspan="6">
-                        Nenhuma avaliação encontrada.
-                      </td>
+                                <strong>
 
-                    </tr>
+                                  ${escapeHTML(
+                                    employee?.full_name ||
+                                    ''
+                                  )}
 
-                  `
+                                </strong>
+
+                              </td>
+
+
+                              <td>
+
+                                ${escapeHTML(
+                                  operation?.name ||
+                                  '-'
+                                )}
+
+                              </td>
+
+
+                              <td>
+
+                                <strong>
+
+                                  ${escapeHTML(
+                                    item
+                                      .checkpoint
+                                      .checkpoint
+                                  )}
+
+                                </strong>
+
+                              </td>
+
+
+                              <td>
+
+                                ${sideStatus(
+                                  item.checkpoint,
+                                  item.employeeSubmission
+                                )}
+
+                              </td>
+
+
+                              <td>
+
+                                ${
+                                  !item.employment.leader_id
+                                  &&
+                                  !item.leaderSubmission
+
+                                    ? `
+
+                                        <span class="assessment-pill danger">
+                                          ⚠ Sem líder
+                                        </span>
+
+                                      `
+
+                                    : sideStatus(
+                                        item.checkpoint,
+                                        item.leaderSubmission
+                                      )
+                                }
+
+                              </td>
+
+
+                              <td>
+
+                                ${formatDate(
+                                  item
+                                    .checkpoint
+                                    .due_at
+                                )}
+
+                              </td>
+
+                            </tr>
+
+                          `;
+
+                        }
+                      )
+                      .join('')
+
+                  : `
+
+                      <tr>
+
+                        <td colspan="6">
+                          Nenhuma avaliação encontrada.
+                        </td>
+
+                      </tr>
+
+                    `
               }
 
             </tbody>
@@ -1991,9 +1930,9 @@
   }
 
 
-// ============================================================
-// STATUS LADO RH
-// ============================================================
+  // ============================================================
+  // STATUS
+  // ============================================================
 
   function sideStatus(
     checkpoint,
@@ -2045,18 +1984,15 @@
   }
 
 
-// ============================================================
-// FORMULÁRIO
-// ============================================================
+  // ============================================================
+  // FORMULÁRIO
+  // ============================================================
 
   async function openForm(
     submissionId
   ) {
 
-    const {
-      data: submission,
-      error
-    } =
+    const submissionResult =
       await journeySupabase
         .from(
           'journey_assessment_submissions'
@@ -2085,15 +2021,23 @@
         .single();
 
 
-    if (error) {
+    if (
+      submissionResult.error
+    ) {
 
       alert(
-        error.message
+        submissionResult
+          .error
+          .message
       );
 
       return;
 
     }
+
+
+    const submission =
+      submissionResult.data;
 
 
     const checkpoint =
@@ -2115,10 +2059,7 @@
       );
 
 
-    const {
-      data: questions,
-      error: questionError
-    } =
+    const questionResult =
       await journeySupabase
         .from(
           'journey_assessment_questions'
@@ -2149,10 +2090,14 @@
         );
 
 
-    if (questionError) {
+    if (
+      questionResult.error
+    ) {
 
       alert(
-        questionError.message
+        questionResult
+          .error
+          .message
       );
 
       return;
@@ -2160,8 +2105,13 @@
     }
 
 
+    const questions =
+      questionResult.data ||
+      [];
+
+
     if (
-      !questions?.length
+      !questions.length
     ) {
 
       alert(
@@ -2173,10 +2123,7 @@
     }
 
 
-    const {
-      data: answers,
-      error: answerError
-    } =
+    const answerResult =
       await journeySupabase
         .from(
           'journey_assessment_answers'
@@ -2194,15 +2141,24 @@
         );
 
 
-    if (answerError) {
+    if (
+      answerResult.error
+    ) {
 
       alert(
-        answerError.message
+        answerResult
+          .error
+          .message
       );
 
       return;
 
     }
+
+
+    const answers =
+      answerResult.data ||
+      [];
 
 
     openGenericModal(`
@@ -2220,22 +2176,17 @@
             </span>
 
             <h2>
-
               ${escapeHTML(
-                employee?.full_name
-                ||
+                employee?.full_name ||
                 currentProfile.full_name
               )}
-
             </h2>
 
             <p>
-
               Prazo:
               ${formatDate(
                 checkpoint.due_at
               )}
-
             </p>
 
           </div>
@@ -2258,32 +2209,29 @@
         >
 
           ${
-            questions.map(
-              (
-                question,
-                index
-              ) => {
+            questions
+              .map(
+                (
+                  question,
+                  index
+                ) => {
 
-                const answer =
-                  (
-                    answers ||
-                    []
-                  )
-                    .find(
+                  const answer =
+                    answers.find(
                       item =>
                         item.question_id ===
                         question.id
                     );
 
 
-                return renderQuestion(
-                  question,
-                  answer,
-                  index + 1
-                );
+                  return renderQuestion(
+                    question,
+                    answer,
+                    index + 1
+                  );
 
-              }
-            )
+                }
+              )
               .join('')
           }
 
@@ -2321,12 +2269,15 @@
       )
       ?.addEventListener(
         'click',
-        () =>
+        () => {
+
           saveForm(
             submissionId,
             questions,
             false
-          )
+          );
+
+        }
       );
 
 
@@ -2353,15 +2304,75 @@
   }
 
 
-// ============================================================
-// PERGUNTA
-// ============================================================
+  // ============================================================
+  // PERGUNTA
+  // ============================================================
 
   function renderQuestion(
     question,
     answer,
     index
   ) {
+
+    let input = '';
+
+
+    if (
+      question.question_type ===
+      'SCALE_1_5'
+    ) {
+
+      input =
+        renderScale(
+          question,
+          answer
+        );
+
+    }
+
+    else if (
+      question.question_type ===
+      'YES_NO'
+    ) {
+
+      input =
+        renderYesNo(
+          question,
+          answer
+        );
+
+    }
+
+    else if (
+      question.question_type ===
+      'TEXT'
+    ) {
+
+      input = `
+
+        <textarea
+          data-text-answer
+          rows="4"
+          placeholder="Digite sua resposta..."
+        >${escapeHTML(
+          answer?.text_value ||
+          ''
+        )}</textarea>
+
+      `;
+
+    }
+
+    else {
+
+      input =
+        renderChoice(
+          question,
+          answer
+        );
+
+    }
+
 
     return `
 
@@ -2376,64 +2387,21 @@
 
 
         <small>
-
           ${escapeHTML(
-            question.dimension
-            ||
+            question.dimension ||
             ''
           )}
-
         </small>
 
 
         <strong>
-
           ${escapeHTML(
             question.question_text
           )}
-
         </strong>
 
 
-        ${
-          question.question_type ===
-          'SCALE_1_5'
-
-          ? renderScale(
-              question,
-              answer
-            )
-
-          : question.question_type ===
-            'YES_NO'
-
-            ? renderYesNo(
-                question,
-                answer
-              )
-
-            : question.question_type ===
-              'TEXT'
-
-              ? `
-
-                <textarea
-                  data-text-answer
-                  rows="4"
-                  placeholder="Digite sua resposta..."
-                >${escapeHTML(
-                  answer?.text_value
-                  ||
-                  ''
-                )}</textarea>
-
-              `
-
-              : renderChoice(
-                  question,
-                  answer
-                )
-        }
+        ${input}
 
       </div>
 
@@ -2442,9 +2410,9 @@
   }
 
 
-// ============================================================
-// ESCALA
-// ============================================================
+  // ============================================================
+  // ESCALA
+  // ============================================================
 
   function renderScale(
     question,
@@ -2475,9 +2443,10 @@
                     ${
                       Number(
                         answer?.numeric_value
-                      ) ===
-                      number
+                      ) === number
+
                         ? 'checked'
+
                         : ''
                     }
                   >
@@ -2513,9 +2482,9 @@
   }
 
 
-// ============================================================
-// SIM/NÃO
-// ============================================================
+  // ============================================================
+  // SIM / NÃO
+  // ============================================================
 
   function renderYesNo(
     question,
@@ -2535,7 +2504,9 @@
             ${
               answer?.boolean_value ===
               true
+
                 ? 'checked'
+
                 : ''
             }
           >
@@ -2556,7 +2527,9 @@
             ${
               answer?.boolean_value ===
               false
+
                 ? 'checked'
+
                 : ''
             }
           >
@@ -2574,9 +2547,9 @@
   }
 
 
-// ============================================================
-// ESCOLHA
-// ============================================================
+  // ============================================================
+  // MÚLTIPLA ESCOLHA
+  // ============================================================
 
   function renderChoice(
     question,
@@ -2587,7 +2560,9 @@
       Array.isArray(
         question.options
       )
+
         ? question.options
+
         : [];
 
 
@@ -2596,31 +2571,38 @@
       <div class="choice-options vertical">
 
         ${
-          options.map(
-            option => `
+          options
+            .map(
+              option => `
 
-              <label>
+                <label>
 
-                <input
-                  type="radio"
-                  name="q_${question.id}"
-                  value="${escapeHTML(option)}"
-                  ${
-                    answer?.option_value ===
-                    option
-                      ? 'checked'
-                      : ''
-                  }
-                >
+                  <input
+                    type="radio"
+                    name="q_${question.id}"
+                    value="${escapeHTML(
+                      option
+                    )}"
+                    ${
+                      answer?.option_value ===
+                      option
 
-                <span>
-                  ${escapeHTML(option)}
-                </span>
+                        ? 'checked'
 
-              </label>
+                        : ''
+                    }
+                  >
 
-            `
-          )
+                  <span>
+                    ${escapeHTML(
+                      option
+                    )}
+                  </span>
+
+                </label>
+
+              `
+            )
             .join('')
         }
 
@@ -2631,9 +2613,9 @@
   }
 
 
-// ============================================================
-// SALVAR
-// ============================================================
+  // ============================================================
+  // SALVAR
+  // ============================================================
 
   async function saveForm(
     submissionId,
@@ -2769,15 +2751,10 @@
             return {
 
               question,
-
               numeric,
-
               text,
-
               boolean,
-
               option,
-
               hasValue
 
             };
@@ -2831,13 +2808,12 @@
             .rpc(
               'save_journey_assessment_answer',
               {
+
                 p_submission_id:
                   submissionId,
 
                 p_question_id:
-                  response
-                    .question
-                    .id,
+                  response.question.id,
 
                 p_numeric_value:
                   response.numeric,
@@ -2850,6 +2826,7 @@
 
                 p_option_value:
                   response.option
+
               }
             );
 
@@ -2877,9 +2854,7 @@
           'Enviar esta avaliação?\n\nDepois do envio ela será considerada concluída.'
         )
       ) {
-
         return;
-
       }
 
 
@@ -2922,8 +2897,7 @@
 
 
       alert(
-        error.message
-        ||
+        error.message ||
         'Não foi possível salvar.'
       );
 
@@ -2932,9 +2906,9 @@
   }
 
 
-// ============================================================
-// VISUALIZAR
-// ============================================================
+  // ============================================================
+  // VISUALIZAR RESPOSTAS
+  // ============================================================
 
   async function viewSubmission(
     submissionId
@@ -2978,8 +2952,53 @@
 
 
     const answers =
-      data ||
-      [];
+      (
+        data ||
+        []
+      )
+        .slice()
+        .sort(
+          (
+            a,
+            b
+          ) => {
+
+            const questionA =
+              asObject(
+                a
+                  .journey_assessment_questions
+              );
+
+
+            const questionB =
+              asObject(
+                b
+                  .journey_assessment_questions
+              );
+
+
+            return (
+
+              (
+                questionA
+                  ?.display_order
+                ||
+                0
+              )
+
+              -
+
+              (
+                questionB
+                  ?.display_order
+                ||
+                0
+              )
+
+            );
+
+          }
+        );
 
 
     openGenericModal(`
@@ -3009,57 +3028,60 @@
       <div class="assessment-modal-body">
 
         ${
-          answers.map(
-            answer => {
+          answers.length
 
-              const question =
-                asObject(
-                  answer
-                    .journey_assessment_questions
-                );
+            ? answers
+                .map(
+                  answer => {
 
-
-              return `
-
-                <div class="view-answer">
-
-                  <small>
-
-                    ${escapeHTML(
-                      question?.dimension
-                      ||
-                      ''
-                    )}
-
-                  </small>
-
-                  <strong>
-
-                    ${escapeHTML(
-                      question?.question_text
-                      ||
-                      ''
-                    )}
-
-                  </strong>
-
-                  <p>
-
-                    ${escapeHTML(
-                      answerValue(
+                    const question =
+                      asObject(
                         answer
-                      )
-                    )}
+                          .journey_assessment_questions
+                      );
 
-                  </p>
 
+                    return `
+
+                      <div class="view-answer">
+
+                        <small>
+                          ${escapeHTML(
+                            question?.dimension ||
+                            ''
+                          )}
+                        </small>
+
+                        <strong>
+                          ${escapeHTML(
+                            question?.question_text ||
+                            ''
+                          )}
+                        </strong>
+
+                        <p>
+                          ${escapeHTML(
+                            answerValue(
+                              answer
+                            )
+                          )}
+                        </p>
+
+                      </div>
+
+                    `;
+
+                  }
+                )
+                .join('')
+
+            : `
+
+                <div class="assessment-empty">
+                  Nenhuma resposta encontrada.
                 </div>
 
-              `;
-
-            }
-          )
-            .join('')
+              `
         }
 
       </div>
@@ -3069,9 +3091,9 @@
   }
 
 
-// ============================================================
-// BOTÕES DE VISUALIZAÇÃO
-// ============================================================
+  // ============================================================
+  // BOTÕES VER
+  // ============================================================
 
   function bindViewButtons() {
 
@@ -3087,8 +3109,7 @@
             () => {
 
               viewSubmission(
-                button
-                  .dataset
+                button.dataset
                   .viewSubmission
               );
 
@@ -3101,9 +3122,9 @@
   }
 
 
-// ============================================================
-// HELPERS
-// ============================================================
+  // ============================================================
+  // HELPERS
+  // ============================================================
 
   function getJourney(
     employment
@@ -3116,15 +3137,21 @@
 
 
     return (
+
       journeys.find(
         journey =>
           journey.status ===
           'ACTIVE'
       )
+
       ||
+
       journeys[0]
+
       ||
+
       null
+
     );
 
   }
@@ -3156,10 +3183,13 @@
             .journey_checkpoints
         )
           .forEach(
-            checkpoint =>
+            checkpoint => {
+
               ids.push(
                 checkpoint.id
-              )
+              );
+
+            }
           );
 
       }
@@ -3167,7 +3197,9 @@
 
 
     return [
-      ...new Set(ids)
+      ...new Set(
+        ids
+      )
     ];
 
   }
@@ -3202,6 +3234,7 @@
 
 
     return (
+
       (
         order[
           a.checkpoint
@@ -3209,7 +3242,9 @@
         ||
         999
       )
+
       -
+
       (
         order[
           b.checkpoint
@@ -3217,6 +3252,7 @@
         ||
         999
       )
+
     );
 
   }
@@ -3315,7 +3351,9 @@
 
     return `
 
-      <span class="assessment-pill ${css}">
+      <span
+        class="assessment-pill ${css}"
+      >
         ${label}
       </span>
 
@@ -3334,7 +3372,9 @@
 
 
     const date =
-      new Date(value);
+      new Date(
+        value
+      );
 
 
     if (
@@ -3366,11 +3406,7 @@
       undefined
     ) {
 
-      return (
-        answer.numeric_value
-        +
-        ' / 5'
-      );
+      return `${answer.numeric_value} / 5`;
 
     }
 
@@ -3384,26 +3420,34 @@
     ) {
 
       return answer.boolean_value
+
         ? 'Sim'
+
         : 'Não';
 
     }
 
 
     return (
+
       answer.option_value
+
       ||
+
       answer.text_value
+
       ||
+
       '-'
+
     );
 
   }
 
 
-// ============================================================
-// MODAL
-// ============================================================
+  // ============================================================
+  // MODAL
+  // ============================================================
 
   function openGenericModal(
     content
@@ -3429,7 +3473,9 @@
     overlay.innerHTML = `
 
       <div class="import-modal">
+
         ${content}
+
       </div>
 
     `;
@@ -3481,10 +3527,6 @@
   }
 
 
-// ============================================================
-// EXPOR MODAL TAMBÉM
-// ============================================================
-
   window.openGenericModal =
     openGenericModal;
 
@@ -3493,9 +3535,9 @@
     closeGenericModal;
 
 
-// ============================================================
-// CSS
-// ============================================================
+  // ============================================================
+  // CSS
+  // ============================================================
 
   function injectStyles() {
 
@@ -3854,7 +3896,10 @@
         text-align:center;
       }
 
-      @media(max-width:800px) {
+
+      @media (
+        max-width:800px
+      ) {
 
         .assessment-checkpoint {
           grid-template-columns:
@@ -3888,12 +3933,8 @@
   }
 
 
-// ============================================================
-// SINAL PARA DIAGNÓSTICO
-// ============================================================
-
   console.log(
-    'Shopee Journey: módulo assessments.js carregado com sucesso.'
+    'Shopee Journey: assessments.js carregado com sucesso.'
   );
 
 })();
