@@ -1,56 +1,91 @@
 // ============================================================
 // SHOPEE JOURNEY
-// AUTH — RECUPERAÇÃO DE LOGIN
+// AUTH V2 - LOGIN DIRETO NO SUPABASE AUTH
 // ============================================================
 
 'use strict';
 
-let loginMode = 'corporate';
-let loginInProgress = false;
 
+let loginMode =
+  'corporate';
+
+let loginInProgress =
+  false;
+
+
+// ============================================================
+// ELEMENTOS
+// ============================================================
 
 const corporateTab =
-  document.getElementById('corporateTab');
+  document.getElementById(
+    'corporateTab'
+  );
 
 const employeeTab =
-  document.getElementById('employeeTab');
+  document.getElementById(
+    'employeeTab'
+  );
 
 const loginForm =
-  document.getElementById('loginForm');
+  document.getElementById(
+    'loginForm'
+  );
 
 const loginInput =
-  document.getElementById('login');
+  document.getElementById(
+    'login'
+  );
 
 const loginLabel =
-  document.getElementById('loginLabel');
+  document.getElementById(
+    'loginLabel'
+  );
 
 const passwordInput =
-  document.getElementById('password');
+  document.getElementById(
+    'password'
+  );
 
 const loginButton =
-  document.getElementById('loginButton');
+  document.getElementById(
+    'loginButton'
+  );
 
 const loginMessage =
-  document.getElementById('loginMessage');
+  document.getElementById(
+    'loginMessage'
+  );
 
 const accessHelp =
-  document.getElementById('accessHelp');
+  document.getElementById(
+    'accessHelp'
+  );
 
 const showPassword =
-  document.getElementById('showPassword');
+  document.getElementById(
+    'showPassword'
+  );
 
 const themeToggle =
-  document.getElementById('themeToggle');
+  document.getElementById(
+    'themeToggle'
+  );
 
 
-const AUTH_TIMEOUT_MS = 12000;
+// ============================================================
+// CONFIGURAÇÕES
+// ============================================================
+
+const LOGIN_TIMEOUT_MS =
+  15000;
 
 
 // ============================================================
 // MENSAGENS
 // ============================================================
 
-function setMessage(
+function showLoginMessage(
   message = '',
   type = ''
 ) {
@@ -59,8 +94,10 @@ function setMessage(
     return;
   }
 
+
   loginMessage.textContent =
     message;
+
 
   loginMessage.className =
     type
@@ -74,7 +111,7 @@ function setMessage(
 // BOTÃO
 // ============================================================
 
-function setLoginButtonLoading(
+function setLoginLoading(
   loading
 ) {
 
@@ -82,176 +119,15 @@ function setLoginButtonLoading(
     return;
   }
 
+
   loginButton.disabled =
     loading;
+
 
   loginButton.textContent =
     loading
       ? 'Entrando...'
       : 'Entrar';
-
-}
-
-
-// ============================================================
-// TIMEOUT
-// ============================================================
-
-function withTimeout(
-  promiseLike,
-  timeoutMs,
-  timeoutMessage
-) {
-
-  let timer;
-
-
-  const timeoutPromise =
-    new Promise(
-      (
-        _,
-        reject
-      ) => {
-
-        timer =
-          window.setTimeout(
-            () => {
-
-              reject(
-                new Error(
-                  timeoutMessage
-                )
-              );
-
-            },
-            timeoutMs
-          );
-
-      }
-    );
-
-
-  return Promise.race([
-    Promise.resolve(
-      promiseLike
-    ),
-    timeoutPromise
-  ])
-    .finally(
-      () => {
-
-        window.clearTimeout(
-          timer
-        );
-
-      }
-    );
-
-}
-
-
-// ============================================================
-// ERROS AMIGÁVEIS
-// ============================================================
-
-function friendlyAuthError(
-  error
-) {
-
-  const raw =
-    String(
-      error?.message ||
-      error ||
-      ''
-    ).trim();
-
-
-  const lower =
-    raw.toLowerCase();
-
-
-  if (
-    lower.includes(
-      'invalid login credentials'
-    )
-  ) {
-
-    return loginMode ===
-      'corporate'
-
-      ? 'E-mail ou senha incorretos.'
-
-      : 'CPF ou senha incorretos.';
-
-  }
-
-
-  if (
-    lower.includes(
-      'email not confirmed'
-    )
-  ) {
-
-    return (
-      'Este acesso ainda não foi confirmado no Supabase.'
-    );
-
-  }
-
-
-  if (
-    lower.includes(
-      'too many requests'
-    )
-    ||
-    lower.includes(
-      'rate limit'
-    )
-  ) {
-
-    return (
-      'Muitas tentativas em pouco tempo. Aguarde alguns instantes e tente novamente.'
-    );
-
-  }
-
-
-  if (
-    lower.includes(
-      'failed to fetch'
-    )
-    ||
-    lower.includes(
-      'network'
-    )
-  ) {
-
-    return (
-      'Não foi possível conectar ao Supabase. Verifique a internet e tente novamente.'
-    );
-
-  }
-
-
-  if (
-    lower.includes(
-      'tempo limite'
-    )
-    ||
-    lower.includes(
-      'timeout'
-    )
-  ) {
-
-    return raw;
-
-  }
-
-
-  return (
-    raw ||
-    'Não foi possível realizar o login.'
-  );
 
 }
 
@@ -283,9 +159,7 @@ function applyTheme(
   );
 
 
-  if (
-    themeToggle
-  ) {
+  if (themeToggle) {
 
     themeToggle.textContent =
       safeTheme === 'dark'
@@ -299,22 +173,22 @@ function applyTheme(
 
 function loadTheme() {
 
-  applyTheme(
+  const storedTheme =
     localStorage.getItem(
       'journey-theme'
-    )
-    ||
+    );
+
+
+  applyTheme(
+    storedTheme ||
     'light'
   );
 
 }
 
 
-if (
-  themeToggle
-) {
-
-  themeToggle.addEventListener(
+themeToggle
+  ?.addEventListener(
     'click',
     () => {
 
@@ -334,14 +208,12 @@ if (
     }
   );
 
-}
-
 
 loadTheme();
 
 
 // ============================================================
-// ALTERAR MODO
+// MODO DE LOGIN
 // ============================================================
 
 function setLoginMode(
@@ -354,12 +226,11 @@ function setLoginMode(
       : 'corporate';
 
 
-  setMessage();
+  showLoginMessage();
 
 
   const corporate =
-    loginMode ===
-    'corporate';
+    loginMode === 'corporate';
 
 
   corporateTab
@@ -378,9 +249,7 @@ function setLoginMode(
     );
 
 
-  if (
-    loginLabel
-  ) {
+  if (loginLabel) {
 
     loginLabel.textContent =
       corporate
@@ -390,46 +259,36 @@ function setLoginMode(
   }
 
 
-  if (
-    loginInput
-  ) {
+  if (loginInput) {
+
+    loginInput.value =
+      '';
 
     loginInput.type =
       corporate
         ? 'email'
         : 'text';
 
-
     loginInput.inputMode =
       corporate
         ? 'email'
         : 'numeric';
-
 
     loginInput.placeholder =
       corporate
         ? 'nome@shopee.com'
         : '000.000.000-00';
 
-
-    loginInput.value =
-      '';
-
-
     loginInput.focus();
 
   }
 
 
-  if (
-    accessHelp
-  ) {
+  if (accessHelp) {
 
     accessHelp.textContent =
       corporate
-
         ? 'Utilize seu e-mail corporativo Shopee.'
-
         : 'Utilize seu CPF e sua senha de acesso.';
 
   }
@@ -440,20 +299,26 @@ function setLoginMode(
 corporateTab
   ?.addEventListener(
     'click',
-    () =>
+    () => {
+
       setLoginMode(
         'corporate'
-      )
+      );
+
+    }
   );
 
 
 employeeTab
   ?.addEventListener(
     'click',
-    () =>
+    () => {
+
       setLoginMode(
         'employee'
-      )
+      );
+
+    }
   );
 
 
@@ -466,8 +331,7 @@ function normalizeCPF(
 ) {
 
   return String(
-    value ||
-    ''
+    value || ''
   )
     .replace(
       /\D/g,
@@ -477,22 +341,11 @@ function normalizeCPF(
 }
 
 
-function employeeInternalEmail(
-  cpf
-) {
-
-  return (
-    `${normalizeCPF(cpf)}@employee.journey.internal`
-  );
-
-}
-
-
 function formatCPF(
   value
 ) {
 
-  let cpf =
+  const digits =
     normalizeCPF(
       value
     )
@@ -503,46 +356,57 @@ function formatCPF(
 
 
   if (
-    cpf.length >
-    9
+    digits.length <= 3
   ) {
 
-    cpf =
-      cpf.replace(
-        /(\d{3})(\d{3})(\d{3})(\d{0,2})/,
-        '$1.$2.$3-$4'
-      );
-
-  }
-
-  else if (
-    cpf.length >
-    6
-  ) {
-
-    cpf =
-      cpf.replace(
-        /(\d{3})(\d{3})(\d{0,3})/,
-        '$1.$2.$3'
-      );
-
-  }
-
-  else if (
-    cpf.length >
-    3
-  ) {
-
-    cpf =
-      cpf.replace(
-        /(\d{3})(\d{0,3})/,
-        '$1.$2'
-      );
+    return digits;
 
   }
 
 
-  return cpf;
+  if (
+    digits.length <= 6
+  ) {
+
+    return (
+      `${digits.slice(0, 3)}.` +
+      `${digits.slice(3)}`
+    );
+
+  }
+
+
+  if (
+    digits.length <= 9
+  ) {
+
+    return (
+      `${digits.slice(0, 3)}.` +
+      `${digits.slice(3, 6)}.` +
+      `${digits.slice(6)}`
+    );
+
+  }
+
+
+  return (
+    `${digits.slice(0, 3)}.` +
+    `${digits.slice(3, 6)}.` +
+    `${digits.slice(6, 9)}-` +
+    `${digits.slice(9, 11)}`
+  );
+
+}
+
+
+function employeeLoginEmail(
+  cpf
+) {
+
+  return (
+    `${normalizeCPF(cpf)}` +
+    '@employee.journey.internal'
+  );
 
 }
 
@@ -553,16 +417,19 @@ loginInput
     () => {
 
       if (
-        loginMode ===
+        loginMode !==
         'employee'
       ) {
 
-        loginInput.value =
-          formatCPF(
-            loginInput.value
-          );
+        return;
 
       }
+
+
+      loginInput.value =
+        formatCPF(
+          loginInput.value
+        );
 
     }
   );
@@ -577,19 +444,19 @@ showPassword
     'click',
     () => {
 
-      const willShow =
+      const hidden =
         passwordInput.type ===
         'password';
 
 
       passwordInput.type =
-        willShow
+        hidden
           ? 'text'
           : 'password';
 
 
       showPassword.textContent =
-        willShow
+        hidden
           ? '🙈'
           : '👁';
 
@@ -598,23 +465,425 @@ showPassword
 
 
 // ============================================================
-// LOGIN
-//
-// IMPORTANTE:
-// ESTA TELA SOMENTE AUTENTICA.
-//
-// A leitura de public.profiles fica para o app.js.
-//
-// Isso evita o travamento em "Entrando..."
-// que estava ocorrendo após a autenticação.
+// STORAGE KEY DO SUPABASE
+// ============================================================
+
+function getSupabaseStorageKey() {
+
+  try {
+
+    const projectUrl =
+      new URL(
+        SUPABASE_URL
+      );
+
+
+    const projectRef =
+      projectUrl.hostname
+        .split('.')[0];
+
+
+    return (
+      `sb-${projectRef}-auth-token`
+    );
+
+  }
+
+  catch {
+
+    return null;
+
+  }
+
+}
+
+
+// ============================================================
+// LIMPAR SESSÃO ANTIGA
+// ============================================================
+
+function clearOldSupabaseSession() {
+
+  const storageKey =
+    getSupabaseStorageKey();
+
+
+  if (!storageKey) {
+    return;
+  }
+
+
+  const keysToRemove =
+    [];
+
+
+  for (
+    let i = 0;
+    i < localStorage.length;
+    i++
+  ) {
+
+    const key =
+      localStorage.key(i);
+
+
+    if (
+      key
+      &&
+      (
+        key === storageKey
+        ||
+        key.startsWith(
+          `${storageKey}.`
+        )
+      )
+    ) {
+
+      keysToRemove.push(
+        key
+      );
+
+    }
+
+  }
+
+
+  keysToRemove.forEach(
+    key => {
+
+      localStorage.removeItem(
+        key
+      );
+
+    }
+  );
+
+}
+
+
+// ============================================================
+// GRAVAR NOVA SESSÃO
+// ============================================================
+
+function saveSupabaseSession(
+  session
+) {
+
+  const storageKey =
+    getSupabaseStorageKey();
+
+
+  if (!storageKey) {
+
+    throw new Error(
+      'Não foi possível identificar o armazenamento da sessão.'
+    );
+
+  }
+
+
+  const normalizedSession = {
+    ...session
+  };
+
+
+  if (
+    !normalizedSession.expires_at
+    &&
+    normalizedSession.expires_in
+  ) {
+
+    normalizedSession.expires_at =
+      Math.floor(
+        Date.now() / 1000
+      )
+      +
+      Number(
+        normalizedSession.expires_in
+      );
+
+  }
+
+
+  localStorage.setItem(
+    storageKey,
+    JSON.stringify(
+      normalizedSession
+    )
+  );
+
+}
+
+
+// ============================================================
+// FETCH COM TIMEOUT REAL
+// ============================================================
+
+async function fetchWithTimeout(
+  url,
+  options = {},
+  timeout =
+    LOGIN_TIMEOUT_MS
+) {
+
+  const controller =
+    new AbortController();
+
+
+  const timer =
+    window.setTimeout(
+      () => {
+
+        controller.abort();
+
+      },
+      timeout
+    );
+
+
+  try {
+
+    return await fetch(
+      url,
+      {
+        ...options,
+        signal:
+          controller.signal
+      }
+    );
+
+  }
+
+  finally {
+
+    window.clearTimeout(
+      timer
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// ERRO SUPABASE
+// ============================================================
+
+function getSupabaseErrorMessage(
+  body,
+  status
+) {
+
+  const message =
+    String(
+      body?.msg
+      ||
+      body?.message
+      ||
+      body?.error_description
+      ||
+      body?.error
+      ||
+      ''
+    );
+
+
+  const lower =
+    message.toLowerCase();
+
+
+  if (
+    status === 400
+    &&
+    (
+      lower.includes(
+        'invalid login'
+      )
+      ||
+      lower.includes(
+        'invalid credentials'
+      )
+    )
+  ) {
+
+    return loginMode ===
+      'employee'
+      ? 'CPF ou senha incorretos.'
+      : 'E-mail ou senha incorretos.';
+
+  }
+
+
+  if (
+    lower.includes(
+      'email not confirmed'
+    )
+  ) {
+
+    return (
+      'Este usuário ainda não está confirmado no Supabase.'
+    );
+
+  }
+
+
+  if (
+    status === 429
+  ) {
+
+    return (
+      'Muitas tentativas de login. Aguarde um pouco e tente novamente.'
+    );
+
+  }
+
+
+  if (message) {
+    return message;
+  }
+
+
+  return (
+    `Erro de autenticação do Supabase (HTTP ${status}).`
+  );
+
+}
+
+
+// ============================================================
+// LOGIN DIRETO NO GOTRUE
+// ============================================================
+
+async function loginDirectly(
+  email,
+  password
+) {
+
+  const endpoint =
+    (
+      `${SUPABASE_URL}` +
+      '/auth/v1/token' +
+      '?grant_type=password'
+    );
+
+
+  let response;
+
+
+  try {
+
+    response =
+      await fetchWithTimeout(
+        endpoint,
+        {
+          method:
+            'POST',
+
+          headers: {
+            apikey:
+              SUPABASE_PUBLISHABLE_KEY,
+
+            'Content-Type':
+              'application/json',
+
+            Accept:
+              'application/json'
+          },
+
+          body:
+            JSON.stringify({
+              email,
+              password
+            })
+        }
+      );
+
+  }
+
+  catch (error) {
+
+    if (
+      error?.name ===
+      'AbortError'
+    ) {
+
+      throw new Error(
+        'Não foi possível alcançar o servidor do Supabase em 15 segundos. Isso indica problema de conexão com o projeto, e não erro de senha.'
+      );
+
+    }
+
+
+    throw new Error(
+      'Falha de conexão com o Supabase: ' +
+      (
+        error?.message ||
+        'erro de rede'
+      )
+    );
+
+  }
+
+
+  let body = {};
+
+
+  try {
+
+    body =
+      await response.json();
+
+  }
+
+  catch {
+
+    body = {};
+
+  }
+
+
+  if (
+    !response.ok
+  ) {
+
+    throw new Error(
+      getSupabaseErrorMessage(
+        body,
+        response.status
+      )
+    );
+
+  }
+
+
+  if (
+    !body.access_token
+    ||
+    !body.refresh_token
+    ||
+    !body.user
+  ) {
+
+    throw new Error(
+      'O Supabase respondeu, mas não retornou uma sessão válida.'
+    );
+
+  }
+
+
+  return body;
+
+}
+
+
+// ============================================================
+// SUBMIT
 // ============================================================
 
 loginForm
   ?.addEventListener(
     'submit',
-    async (
-      event
-    ) => {
+    async event => {
 
       event.preventDefault();
 
@@ -632,29 +901,35 @@ loginForm
         true;
 
 
-      setMessage();
+      showLoginMessage();
 
-      setLoginButtonLoading(
+      setLoginLoading(
         true
       );
 
 
       try {
 
+        // ======================================================
+        // VALIDAÇÃO DA CONFIG
+        // ======================================================
+
         if (
-          typeof journeySupabase ===
+          typeof SUPABASE_URL ===
+          'undefined'
+          ||
+          typeof SUPABASE_PUBLISHABLE_KEY ===
           'undefined'
         ) {
 
           throw new Error(
-            'O cliente do Supabase não foi carregado. Atualize a página com Ctrl + F5.'
+            'O config.js não carregou corretamente.'
           );
 
         }
 
 
-        let email =
-          '';
+        let email;
 
 
         // ======================================================
@@ -668,9 +943,7 @@ loginForm
 
           email =
             String(
-              loginInput
-                ?.value ||
-              ''
+              loginInput.value
             )
               .trim()
               .toLowerCase();
@@ -683,7 +956,7 @@ loginForm
           ) {
 
             throw new Error(
-              'Utilize um e-mail corporativo @shopee.com.'
+              'Utilize seu e-mail corporativo @shopee.com.'
             );
 
           }
@@ -699,14 +972,12 @@ loginForm
 
           const cpf =
             normalizeCPF(
-              loginInput
-                ?.value
+              loginInput.value
             );
 
 
           if (
-            cpf.length !==
-            11
+            cpf.length !== 11
           ) {
 
             throw new Error(
@@ -717,7 +988,7 @@ loginForm
 
 
           email =
-            employeeInternalEmail(
+            employeeLoginEmail(
               cpf
             );
 
@@ -726,15 +997,12 @@ loginForm
 
         const password =
           String(
-            passwordInput
-              ?.value ||
+            passwordInput.value ||
             ''
           );
 
 
-        if (
-          !password
-        ) {
+        if (!password) {
 
           throw new Error(
             'Informe sua senha.'
@@ -743,66 +1011,54 @@ loginForm
         }
 
 
-        // Remove profile antigo
+        // ======================================================
+        // REMOVE UMA SESSÃO VELHA / TRAVADA
+        // ======================================================
+
+        clearOldSupabaseSession();
+
+
         sessionStorage.removeItem(
           'journey-profile'
         );
 
 
         // ======================================================
-        // LOGIN SUPABASE
+        // LOGIN
         // ======================================================
 
-        const result =
-          await withTimeout(
-
-            journeySupabase
-              .auth
-              .signInWithPassword({
-                email,
-                password
-              }),
-
-            AUTH_TIMEOUT_MS,
-
-            'O Supabase não respondeu dentro de 12 segundos. Tente novamente.'
-
+        const session =
+          await loginDirectly(
+            email,
+            password
           );
 
 
-        if (
-          result?.error
-        ) {
+        // ======================================================
+        // SALVA SESSÃO EXATAMENTE ONDE O SUPABASE-JS ESPERA
+        // ======================================================
 
-          throw result.error;
-
-        }
-
-
-        if (
-          !result?.data?.session
-          ||
-          !result?.data?.user
-        ) {
-
-          throw new Error(
-            'O Supabase não retornou uma sessão válida.'
-          );
-
-        }
+        saveSupabaseSession(
+          session
+        );
 
 
-        setMessage(
+        showLoginMessage(
           'Acesso confirmado. Abrindo Shopee Journey...',
           'success'
         );
 
 
-        // ======================================================
-        // NÃO BUSCA PROFILE AQUI
-        //
-        // app.js já faz a leitura do perfil ao abrir app.html.
-        // ======================================================
+        // Pequeno intervalo apenas para garantir
+        // a gravação no localStorage.
+        await new Promise(
+          resolve =>
+            window.setTimeout(
+              resolve,
+              100
+            )
+        );
+
 
         window.location.replace(
           'app.html'
@@ -810,26 +1066,21 @@ loginForm
 
       }
 
-
-      catch (
-        error
-      ) {
+      catch (error) {
 
         console.error(
-          'Erro no login:',
+          'Shopee Journey login:',
           error
         );
 
 
-        setMessage(
-          friendlyAuthError(
-            error
-          ),
+        showLoginMessage(
+          error?.message ||
+          'Não foi possível entrar.',
           'error'
         );
 
       }
-
 
       finally {
 
@@ -837,7 +1088,7 @@ loginForm
           false;
 
 
-        setLoginButtonLoading(
+        setLoginLoading(
           false
         );
 
@@ -848,66 +1099,16 @@ loginForm
 
 
 // ============================================================
-// VERIFICAR SESSÃO EXISTENTE
+// IMPORTANTE
 //
-// Esta verificação NÃO pode travar o formulário.
+// NÃO CHAMAMOS getSession() NA TELA DE LOGIN.
+//
+// Isso é proposital.
+//
+// A sessão será validada pelo app.js depois do redirecionamento.
 // ============================================================
 
-async function checkExistingSession() {
 
-  try {
-
-    const result =
-      await withTimeout(
-
-        journeySupabase
-          .auth
-          .getSession(),
-
-        5000,
-
-        'Tempo limite ao verificar sessão existente.'
-
-      );
-
-
-    if (
-      loginInProgress
-    ) {
-
-      return;
-
-    }
-
-
-    if (
-      result
-        ?.data
-        ?.session
-        ?.user
-    ) {
-
-      window.location.replace(
-        'app.html'
-      );
-
-    }
-
-  }
-
-
-  catch (
-    error
-  ) {
-
-    console.warn(
-      'Não foi possível verificar sessão anterior:',
-      error
-    );
-
-  }
-
-}
-
-
-checkExistingSession();
+console.log(
+  'Shopee Journey Auth V2 carregado.'
+);
