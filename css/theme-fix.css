@@ -1,0 +1,235 @@
+/* ============================================================
+   SHOPEE JOURNEY — CORREÇÃO GLOBAL DO MODO ESCURO
+   Mantém o laranja Shopee e evita cards brancos/textos apagados.
+   ============================================================ */
+
+body.sj-dark{
+  --sj-bg:#0f1012;
+  --sj-surface:#17181b;
+  --sj-surface-2:#1d1f23;
+  --sj-border:#2b2e34;
+  --sj-text:#f5f5f5;
+  --sj-muted:#a8adb7;
+  --sj-orange:#EE4D2D;
+  --sj-orange-soft:rgba(238,77,45,.14);
+  background:var(--sj-bg)!important;
+  color:var(--sj-text)!important;
+}
+
+body.sj-dark .app-main,
+body.sj-dark .page-content{
+  background:var(--sj-bg)!important;
+  color:var(--sj-text)!important;
+}
+
+body.sj-dark .sidebar,
+body.sj-dark .app-header{
+  background:#17181b!important;
+  color:var(--sj-text)!important;
+  border-color:var(--sj-border)!important;
+}
+
+body.sj-dark .sidebar-brand,
+body.sj-dark .sidebar-footer,
+body.sj-dark .menu-divider{
+  border-color:var(--sj-border)!important;
+}
+
+body.sj-dark .sidebar-brand-text strong,
+body.sj-dark .sidebar-profile strong,
+body.sj-dark #pageTitle,
+body.sj-dark h1,
+body.sj-dark h2,
+body.sj-dark h3,
+body.sj-dark h4,
+body.sj-dark th,
+body.sj-dark td,
+body.sj-dark label,
+body.sj-dark strong{
+  color:var(--sj-text)!important;
+}
+
+body.sj-dark .sidebar-brand-text span,
+body.sj-dark .sidebar-user-role,
+body.sj-dark #pageSubtitle,
+body.sj-dark p,
+body.sj-dark small,
+body.sj-dark .muted,
+body.sj-dark .employees-subtext{
+  color:var(--sj-muted)!important;
+}
+
+body.sj-dark .menu-item{
+  color:#c8cbd1!important;
+  background:transparent!important;
+  border-color:transparent!important;
+}
+
+body.sj-dark .menu-item:hover{
+  background:#202227!important;
+  color:#fff!important;
+}
+
+body.sj-dark .menu-item.active{
+  background:rgba(238,77,45,.16)!important;
+  color:#ff6a4e!important;
+  border-color:rgba(238,77,45,.35)!important;
+}
+
+body.sj-dark .metric-card,
+body.sj-dark .quick-action-card,
+body.sj-dark .dashboard-panel,
+body.sj-dark .panel,
+body.sj-dark .settings-card,
+body.sj-dark .employees-panel,
+body.sj-dark .employees-metric,
+body.sj-dark .assessment-hero,
+body.sj-dark .assessment-summary-grid>div,
+body.sj-dark .assessment-leader,
+body.sj-dark .assessment-checkpoint,
+body.sj-dark .expanded-checkpoint,
+body.sj-dark .users-panel,
+body.sj-dark .users-metric,
+body.sj-dark .users-card,
+body.sj-dark .users-modal,
+body.sj-dark .employee-modal-shell,
+body.sj-dark .employee-form-section{
+  background:var(--sj-surface)!important;
+  color:var(--sj-text)!important;
+  border-color:var(--sj-border)!important;
+  box-shadow:none!important;
+}
+
+body.sj-dark .quick-action-card:hover,
+body.sj-dark .settings-card:hover,
+body.sj-dark .users-card:hover{
+  background:var(--sj-surface-2)!important;
+}
+
+body.sj-dark .metric-card span,
+body.sj-dark .metric-card small,
+body.sj-dark .metric-card .metric-status,
+body.sj-dark .quick-action-card span,
+body.sj-dark .quick-action-card small,
+body.sj-dark .settings-card span,
+body.sj-dark .settings-card small,
+body.sj-dark .users-metric span,
+body.sj-dark .users-metric small{
+  color:var(--sj-muted)!important;
+}
+
+body.sj-dark table,
+body.sj-dark thead,
+body.sj-dark tbody,
+body.sj-dark tr,
+body.sj-dark .employees-table-wrap,
+body.sj-dark .table-wrapper{
+  background:transparent!important;
+  color:var(--sj-text)!important;
+}
+
+body.sj-dark th{
+  color:#bfc3ca!important;
+  border-color:var(--sj-border)!important;
+}
+
+body.sj-dark td,
+body.sj-dark tr{
+  border-color:var(--sj-border)!important;
+}
+
+body.sj-dark tbody tr:hover{
+  background:#1b1d21!important;
+}
+
+body.sj-dark input,
+body.sj-dark select,
+body.sj-dark textarea{
+  background:#121316!important;
+  color:var(--sj-text)!important;
+  border-color:#343840!important;
+}
+
+body.sj-dark input::placeholder,
+body.sj-dark textarea::placeholder{
+  color:#777d87!important;
+}
+
+body.sj-dark input:disabled,
+body.sj-dark select:disabled,
+body.sj-dark textarea:disabled{
+  background:#1b1c20!important;
+  color:#8c919a!important;
+  opacity:1!important;
+}
+
+body.sj-dark option{
+  background:#17181b;
+  color:#fff;
+}
+
+body.sj-dark .icon-button,
+body.sj-dark .logout-button,
+body.sj-dark .assessment-outline,
+body.sj-dark .employee-view-button,
+body.sj-dark .employee-secondary-action,
+body.sj-dark .users-secondary-button{
+  background:#17181b!important;
+  color:#f5f5f5!important;
+  border-color:#343840!important;
+}
+
+body.sj-dark .primary-action-button,
+body.sj-dark .employee-primary-action,
+body.sj-dark .users-primary-button{
+  background:var(--sj-orange)!important;
+  color:#fff!important;
+  border-color:var(--sj-orange)!important;
+}
+
+body.sj-dark .employees-row-attention{
+  background:rgba(238,77,45,.055)!important;
+}
+
+body.sj-dark .employee-rule-note,
+body.sj-dark .employee-empty-block,
+body.sj-dark .employee-history-item,
+body.sj-dark .users-note,
+body.sj-dark .users-operation-box,
+body.sj-dark .users-temp-password{
+  background:#131417!important;
+  border-color:var(--sj-border)!important;
+  color:var(--sj-text)!important;
+}
+
+body.sj-dark .modal-overlay,
+body.sj-dark .employees-modal-overlay,
+body.sj-dark .users-modal-overlay{
+  background:rgba(0,0,0,.72)!important;
+}
+
+body.sj-dark .employee-modal-header,
+body.sj-dark .employee-modal-statusbar,
+body.sj-dark .employee-modal-actions,
+body.sj-dark .users-modal-header,
+body.sj-dark .users-modal-footer{
+  border-color:var(--sj-border)!important;
+}
+
+body.sj-dark .employee-pill.neutral,
+body.sj-dark .employee-pill.muted,
+body.sj-dark .assessment-pill.muted{
+  background:#25272c!important;
+  color:#d6d8dd!important;
+}
+
+body.sj-dark .users-role-badge{
+  background:#27292f!important;
+  color:#e5e7eb!important;
+}
+
+body.sj-dark .users-role-badge.leader,
+body.sj-dark .users-operation-chip{
+  background:var(--sj-orange-soft)!important;
+  color:#ff7357!important;
+}
