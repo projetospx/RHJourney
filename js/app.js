@@ -8,7 +8,6 @@ let currentProfile = null;
 let pageContent = null;
 let pageTitle = null;
 let pageSubtitle = null;
-
 let journeysCache = [];
 let employmentsCache = [];
 let regionalsCache = [];
@@ -69,6 +68,8 @@ async function initializeApp() {
 
     }
 
+
+    injectAppStyles();
 
     bindStaticEvents();
 
@@ -272,13 +273,11 @@ async function openPage(
   }
 
 
-  const allowed =
-    isPageAllowed(
+  if (
+    !isPageAllowed(
       page
-    );
-
-
-  if (!allowed) {
+    )
+  ) {
 
     page =
       'dashboard';
@@ -469,13 +468,13 @@ function applyRolePermissions() {
     .forEach(
       item => {
 
-        const page =
-          item.dataset.page;
-
-
         item.style.display =
-          isPageAllowed(page)
+          isPageAllowed(
+            item.dataset.page
+          )
+
             ? ''
+
             : 'none';
 
       }
@@ -547,12 +546,8 @@ function setPageHeader(
 
 async function loadDashboard() {
 
-  const role =
-    currentProfile.role;
-
-
   if (
-    role ===
+    currentProfile.role ===
     'EMPLOYEE'
   ) {
 
@@ -562,7 +557,7 @@ async function loadDashboard() {
 
 
   if (
-    role ===
+    currentProfile.role ===
     'LEADER'
   ) {
 
@@ -881,14 +876,12 @@ async function loadLeaderDashboard() {
           'Ver e assumir responsabilidade'
         )}
 
-
         ${quickAction(
           'assessments',
           '✓',
           'Avaliações',
           'Responder avaliações da equipe'
         )}
-
 
         ${quickAction(
           'pending',
@@ -913,26 +906,22 @@ async function loadEmployeeDashboard() {
 
   pageContent.innerHTML = `
 
-    <div class="assessment-hero">
+    <div class="journey-hero-simple">
 
-      <div>
+      <span>
+        SHOPEE JOURNEY
+      </span>
 
-        <span>
-          SHOPEE JOURNEY
-        </span>
+      <h2>
+        Olá, ${escapeHTML(
+          currentProfile.full_name ||
+          'Colaborador'
+        )} 🧡
+      </h2>
 
-        <h2>
-          Olá, ${escapeHTML(
-            currentProfile.full_name ||
-            'Colaborador'
-          )} 🧡
-        </h2>
-
-        <p>
-          Acompanhe sua jornada e responda suas avaliações.
-        </p>
-
-      </div>
+      <p>
+        Acompanhe sua jornada e responda suas avaliações.
+      </p>
 
     </div>
 
@@ -1057,8 +1046,7 @@ async function loadNewEmployeesPage() {
           </h3>
 
           <p>
-            Use o modelo padrão. A importação cria o acesso do
-            colaborador e registra a admissão.
+            Use o modelo padrão para cadastrar novos colaboradores.
           </p>
 
         </div>
@@ -1157,11 +1145,9 @@ async function loadNewEmployeesPage() {
                 : `
 
                     <tr>
-
                       <td colspan="5">
                         Nenhum colaborador aguardando início.
                       </td>
-
                     </tr>
 
                   `
@@ -1322,7 +1308,6 @@ function renderWaitingEmployeeRow(
             Iniciar Jornada
           </button>
 
-
           <button
             class="danger-button"
             data-delete-employee="${employment.id}"
@@ -1361,7 +1346,6 @@ function openImportEmployeesModal() {
 
       </div>
 
-
       <button
         id="closeGenericModalButton"
         class="modal-close"
@@ -1381,13 +1365,10 @@ function openImportEmployeesModal() {
         accept=".xlsx,.xls"
       >
 
-
       <div
         id="importPreview"
         style="margin-top:16px"
-      >
-      </div>
-
+      ></div>
 
       <div class="assessment-form-footer">
 
@@ -1398,7 +1379,6 @@ function openImportEmployeesModal() {
         >
           Cancelar
         </button>
-
 
         <button
           id="processEmployeeImport"
@@ -1506,11 +1486,9 @@ function openImportEmployeesModal() {
           preview.innerHTML = `
 
             <div class="system-error">
-
               ${escapeHTML(
                 error.message
               )}
-
             </div>
 
           `;
@@ -1740,18 +1718,14 @@ function normalizeImportRow(
       }
 
 
-      const entries =
-        Object.entries(
-          row
-        );
-
-
       for (
         const [
           key,
           value
         ]
-        of entries
+        of Object.entries(
+          row
+        )
       ) {
 
         const normalizedKey =
@@ -1870,17 +1844,15 @@ function normalizeImportRow(
     ).trim();
 
 
-  const isBlank =
+  if (
     !name
     &&
     !cpf
     &&
     !bpo
     &&
-    !operation;
-
-
-  if (isBlank) {
+    !operation
+  ) {
 
     return null;
 
@@ -2278,12 +2250,8 @@ async function deleteEmployee(
 
 async function loadJourneysPage() {
 
-  const role =
-    currentProfile.role;
-
-
   if (
-    role ===
+    currentProfile.role ===
     'EMPLOYEE'
   ) {
 
@@ -2293,7 +2261,7 @@ async function loadJourneysPage() {
 
 
   if (
-    role ===
+    currentProfile.role ===
     'LEADER'
   ) {
 
@@ -2461,11 +2429,9 @@ async function loadManagementJourneys() {
                 : `
 
                     <tr>
-
                       <td colspan="6">
                         Nenhuma Jornada encontrada.
                       </td>
-
                     </tr>
 
                   `
@@ -2633,20 +2599,6 @@ function renderManagementJourneyRow(
 
 async function loadLeaderJourneys() {
 
-  /*
-   * IMPORTANTE:
-   *
-   * Não usamos:
-   *
-   * .eq('leader_id', currentProfile.id)
-   *
-   * porque o líder precisa enxergar todos os colaboradores
-   * aos quais sua RLS dá acesso pela operação/período.
-   *
-   * Depois ele pode assumir responsabilidade.
-   */
-
-
   const {
     data,
     error
@@ -2787,8 +2739,8 @@ async function loadLeaderJourneys() {
           </h3>
 
           <p>
-            Você pode assumir um colaborador para passar a ser
-            o líder responsável pelas próximas avaliações.
+            Assuma um colaborador para passar a ser o líder
+            responsável pelas próximas avaliações.
           </p>
 
         </div>
@@ -2847,11 +2799,9 @@ async function loadLeaderJourneys() {
                 : `
 
                     <tr>
-
                       <td colspan="6">
                         Nenhum colaborador visível no seu escopo.
                       </td>
-
                     </tr>
 
                   `
@@ -3333,7 +3283,6 @@ async function loadEmployeeJourneys() {
                     )}
                   </b>
 
-
                   <div>
 
                     <strong>
@@ -3441,7 +3390,19 @@ async function loadPendingPage() {
     [];
 
 
-  const today =
+  const checkpointIds =
+    collectCheckpointIds(
+      rows
+    );
+
+
+  const submissions =
+    await fetchSubmissions(
+      checkpointIds
+    );
+
+
+  const now =
     new Date();
 
 
@@ -3476,14 +3437,14 @@ async function loadPendingPage() {
 
         points.push({
 
-          type:
-            'NO_LEADER',
-
           employee:
             person?.full_name,
 
           operation:
             operation?.name,
+
+          type:
+            'NO_LEADER',
 
           detail:
             'Liderança ainda não identificada.'
@@ -3506,19 +3467,61 @@ async function loadPendingPage() {
           cp => {
 
             if (
+              !cp.opens_at
+              ||
+              new Date(
+                cp.opens_at
+              )
+              >
+              now
+            ) {
+
+              return;
+
+            }
+
+
+            const empSub =
+              submissions.find(
+                s =>
+                  s.checkpoint_id ===
+                  cp.id
+                  &&
+                  s.respondent_type ===
+                  'EMPLOYEE'
+                  &&
+                  s.status ===
+                  'SUBMITTED'
+              );
+
+
+            const leaderSub =
+              submissions.find(
+                s =>
+                  s.checkpoint_id ===
+                  cp.id
+                  &&
+                  s.respondent_type ===
+                  'LEADER'
+                  &&
+                  s.status ===
+                  'SUBMITTED'
+              );
+
+
+            if (
               cp.due_at
               &&
               new Date(
                 cp.due_at
               )
               <
-              today
+              now
+              &&
+              !empSub
             ) {
 
               points.push({
-
-                type:
-                  'OVERDUE',
 
                 employee:
                   person?.full_name,
@@ -3526,11 +3529,44 @@ async function loadPendingPage() {
                 operation:
                   operation?.name,
 
-                leader:
-                  leader?.full_name,
+                type:
+                  'EMPLOYEE_OVERDUE',
 
                 detail:
-                  `${cp.checkpoint} com prazo original em ${formatDate(cp.due_at)}.`
+                  `${cp.checkpoint}: avaliação do colaborador ainda não concluída.`
+
+              });
+
+            }
+
+
+            if (
+              employment.leader_id
+              &&
+              cp.due_at
+              &&
+              new Date(
+                cp.due_at
+              )
+              <
+              now
+              &&
+              !leaderSub
+            ) {
+
+              points.push({
+
+                employee:
+                  person?.full_name,
+
+                operation:
+                  operation?.name,
+
+                type:
+                  'LEADER_OVERDUE',
+
+                detail:
+                  `${cp.checkpoint}: avaliação da liderança ainda não concluída (${leader?.full_name || 'líder atual'}).`
 
               });
 
@@ -3619,28 +3655,9 @@ async function loadPendingPage() {
                           </td>
 
                           <td>
-
-                            ${
-                              p.type ===
-                              'NO_LEADER'
-
-                                ? `
-
-                                    <span class="assessment-pill danger">
-                                      Sem líder
-                                    </span>
-
-                                  `
-
-                                : `
-
-                                    <span class="assessment-pill warning">
-                                      Prazo
-                                    </span>
-
-                                  `
-                            }
-
+                            ${pendingBadge(
+                              p.type
+                            )}
                           </td>
 
                           <td>
@@ -3658,11 +3675,9 @@ async function loadPendingPage() {
                 : `
 
                     <tr>
-
                       <td colspan="4">
                         Nenhuma pendência encontrada.
                       </td>
-
                     </tr>
 
                   `
@@ -3681,15 +3696,62 @@ async function loadPendingPage() {
 }
 
 
+function pendingBadge(
+  type
+) {
+
+  if (
+    type ===
+    'NO_LEADER'
+  ) {
+
+    return `
+
+      <span class="assessment-pill danger">
+        Sem líder
+      </span>
+
+    `;
+
+  }
+
+
+  if (
+    type ===
+    'LEADER_OVERDUE'
+  ) {
+
+    return `
+
+      <span class="assessment-pill warning">
+        Liderança
+      </span>
+
+    `;
+
+  }
+
+
+  return `
+
+    <span class="assessment-pill warning">
+      Colaborador
+    </span>
+
+  `;
+
+}
+
+
 // ============================================================
-// INDICADORES
+// INDICADORES REAIS
 // ============================================================
 
 async function loadIndicatorsPage() {
 
   const {
-    data,
-    error
+    data: employments,
+    error: empError
   } =
     await journeySupabase
       .from('employments')
@@ -3697,27 +3759,146 @@ async function loadIndicatorsPage() {
         id,
         status,
         leader_id,
+        admission_date,
 
-        operations (
-          name
+        people (
+          full_name
         ),
 
         bpos (
           name
+        ),
+
+        operations (
+          id,
+          name,
+
+          regionals (
+            name
+          )
+        ),
+
+        leader:profiles!employments_leader_id_fkey (
+          id,
+          full_name
+        ),
+
+        journeys (
+          id,
+          status,
+
+          journey_checkpoints (
+            id,
+            checkpoint,
+            opens_at,
+            due_at
+          )
         )
-      `);
+      `)
+      .in(
+        'status',
+        [
+          'IN_JOURNEY',
+          'COMPLETED'
+        ]
+      )
+      .order(
+        'admission_date',
+        {
+          ascending: false
+        }
+      );
 
 
-  if (error) {
+  if (empError) {
 
-    throw error;
+    throw empError;
 
   }
 
 
   const rows =
-    data ||
+    employments ||
     [];
+
+
+  const checkpointIds =
+    collectCheckpointIds(
+      rows
+    );
+
+
+  const submissions =
+    await fetchSubmissions(
+      checkpointIds
+    );
+
+
+  let answers =
+    [];
+
+
+  if (
+    submissions.length
+  ) {
+
+    const submissionIds =
+      submissions.map(
+        s =>
+          s.id
+      );
+
+
+    const {
+      data: answerData,
+      error: answerError
+    } =
+      await journeySupabase
+        .from(
+          'journey_assessment_answers'
+        )
+        .select(`
+          submission_id,
+          numeric_value,
+          text_value,
+          boolean_value,
+          option_value,
+
+          journey_assessment_questions (
+            id,
+            dimension,
+            question_type
+          ),
+
+          journey_assessment_submissions (
+            id,
+            checkpoint_id,
+            respondent_type,
+            status
+          )
+        `)
+        .in(
+          'submission_id',
+          submissionIds
+        );
+
+
+    if (answerError) {
+
+      throw answerError;
+
+    }
+
+
+    answers =
+      answerData ||
+      [];
+
+  }
+
+
+  const now =
+    new Date();
 
 
   const active =
@@ -3728,39 +3909,211 @@ async function loadIndicatorsPage() {
     );
 
 
-  const leadershipCoverage =
-    active.length
+  const completed =
+    rows.filter(
+      r =>
+        r.status ===
+        'COMPLETED'
+    );
 
-      ? Math.round(
 
-          (
-            active.filter(
-              r =>
-                r.leader_id
-            ).length
+  const noLeader =
+    active.filter(
+      r =>
+        !r.leader_id
+    );
 
-            /
 
-            active.length
-          )
+  const openedCheckpoints =
+    [];
 
-          *
-          100
 
+  rows.forEach(
+    employment => {
+
+      const journey =
+        getEmploymentJourney(
+          employment
+        );
+
+
+      relationArray(
+        journey?.journey_checkpoints
+      )
+        .forEach(
+          cp => {
+
+            if (
+              cp.opens_at
+              &&
+              new Date(
+                cp.opens_at
+              )
+              <=
+              now
+            ) {
+
+              openedCheckpoints.push({
+
+                employment,
+
+                checkpoint:
+                  cp
+
+              });
+
+            }
+
+          }
+        );
+
+    }
+  );
+
+
+  const employeeSubmitted =
+    openedCheckpoints.filter(
+      item =>
+        submissions.some(
+          s =>
+            s.checkpoint_id ===
+            item.checkpoint.id
+            &&
+            s.respondent_type ===
+            'EMPLOYEE'
+            &&
+            s.status ===
+            'SUBMITTED'
         )
+    ).length;
 
-      : 0;
+
+  const leaderEligible =
+    openedCheckpoints.filter(
+      item =>
+        !!item.employment.leader_id
+    );
+
+
+  const leaderSubmitted =
+    leaderEligible.filter(
+      item =>
+        submissions.some(
+          s =>
+            s.checkpoint_id ===
+            item.checkpoint.id
+            &&
+            s.respondent_type ===
+            'LEADER'
+            &&
+            s.status ===
+            'SUBMITTED'
+        )
+    ).length;
+
+
+  const employeeAdherence =
+    percent(
+      employeeSubmitted,
+      openedCheckpoints.length
+    );
+
+
+  const leaderAdherence =
+    percent(
+      leaderSubmitted,
+      leaderEligible.length
+    );
+
+
+  const numericAnswers =
+    answers.filter(
+      a =>
+        a.numeric_value !==
+        null
+        &&
+        a.numeric_value !==
+        undefined
+        &&
+        relationObject(
+          a.journey_assessment_submissions
+        )
+          ?.status ===
+        'SUBMITTED'
+    );
+
+
+  const employeeNumeric =
+    numericAnswers.filter(
+      a =>
+        relationObject(
+          a.journey_assessment_submissions
+        )
+          ?.respondent_type ===
+        'EMPLOYEE'
+    );
+
+
+  const leaderNumeric =
+    numericAnswers.filter(
+      a =>
+        relationObject(
+          a.journey_assessment_submissions
+        )
+          ?.respondent_type ===
+        'LEADER'
+    );
+
+
+  const employeeAverage =
+    average(
+      employeeNumeric.map(
+        a =>
+          Number(
+            a.numeric_value
+          )
+      )
+    );
+
+
+  const leaderAverage =
+    average(
+      leaderNumeric.map(
+        a =>
+          Number(
+            a.numeric_value
+          )
+      )
+    );
+
+
+  const checkpointSummary =
+    buildCheckpointSummary(
+      rows,
+      submissions,
+      answers,
+      now
+    );
+
+
+  const dimensionSummary =
+    buildDimensionSummary(
+      answers
+    );
+
+
+  const attention =
+    buildIndicatorAttention(
+      rows,
+      submissions,
+      dimensionSummary,
+      now
+    );
 
 
   pageContent.innerHTML = `
 
-    <div class="metric-grid">
-
-      ${metricCard(
-        'Total de vínculos',
-        rows.length,
-        'Registros acessíveis'
-      )}
+    <div class="metric-grid indicators-top-grid">
 
       ${metricCard(
         'Jornadas ativas',
@@ -3769,19 +4122,43 @@ async function loadIndicatorsPage() {
       )}
 
       ${metricCard(
-        'Liderança identificada',
-        `${leadershipCoverage}%`,
-        'Entre jornadas ativas'
+        'Sem liderança',
+        noLeader.length,
+        'Ativos sem líder atual'
+      )}
+
+      ${metricCard(
+        'Adesão colaboradores',
+        `${employeeAdherence}%`,
+        `${employeeSubmitted}/${openedCheckpoints.length} checkpoints respondidos`
+      )}
+
+      ${metricCard(
+        'Adesão lideranças',
+        `${leaderAdherence}%`,
+        `${leaderSubmitted}/${leaderEligible.length} checkpoints respondidos`
+      )}
+
+      ${metricCard(
+        'Média colaboradores',
+        formatAverage(
+          employeeAverage
+        ),
+        'Escala média 1 a 5'
+      )}
+
+      ${metricCard(
+        'Média lideranças',
+        formatAverage(
+          leaderAverage
+        ),
+        'Escala média 1 a 5'
       )}
 
       ${metricCard(
         'Concluídas',
-        rows.filter(
-          r =>
-            r.status ===
-            'COMPLETED'
-        ).length,
-        'D90 finalizado'
+        completed.length,
+        'Jornadas encerradas'
       )}
 
     </div>
@@ -3794,21 +4171,927 @@ async function loadIndicatorsPage() {
         <div>
 
           <h3>
-            Indicadores avançados
+            Resumo por checkpoint
           </h3>
 
           <p>
-            Aderência por BPO, operação, líder e coorte será
-            consolidada aqui conforme as respostas forem acumuladas.
+            Aderência e média das respostas escala 1–5.
           </p>
 
         </div>
 
       </div>
 
+
+      <div class="table-wrapper">
+
+        <table class="journey-table">
+
+          <thead>
+
+            <tr>
+
+              <th>
+                Checkpoint
+              </th>
+
+              <th>
+                Colaborador
+              </th>
+
+              <th>
+                Liderança
+              </th>
+
+              <th>
+                Média Colab.
+              </th>
+
+              <th>
+                Média Líder
+              </th>
+
+              <th>
+                Gap
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+            ${
+              checkpointSummary
+                .map(
+                  row => `
+
+                    <tr>
+
+                      <td>
+
+                        <strong>
+                          ${row.checkpoint}
+                        </strong>
+
+                      </td>
+
+
+                      <td>
+
+                        ${row.employeePercent}%
+
+                        <small>
+                          (${row.employeeSubmitted}/${row.opened})
+                        </small>
+
+                      </td>
+
+
+                      <td>
+
+                        ${
+                          row.leaderEligible
+
+                            ? `${row.leaderPercent}% <small>(${row.leaderSubmitted}/${row.leaderEligible})</small>`
+
+                            : '—'
+                        }
+
+                      </td>
+
+
+                      <td>
+                        ${formatAverage(
+                          row.employeeAverage
+                        )}
+                      </td>
+
+
+                      <td>
+                        ${formatAverage(
+                          row.leaderAverage
+                        )}
+                      </td>
+
+
+                      <td>
+                        ${formatGap(
+                          row.gap
+                        )}
+                      </td>
+
+                    </tr>
+
+                  `
+                )
+                .join('')
+            }
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </section>
+
+
+    <section class="dashboard-panel">
+
+      <div class="panel-header">
+
+        <div>
+
+          <h3>
+            Resumo por dimensão
+          </h3>
+
+          <p>
+            Onde a experiência está melhor e onde começa a aparecer risco.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="dimension-grid">
+
+        ${
+          dimensionSummary.length
+
+            ? dimensionSummary
+                .map(
+                  d => `
+
+                    <div
+                      class="dimension-card ${
+                        d.average !==
+                        null
+                        &&
+                        d.average < 3
+
+                          ? 'attention'
+
+                          : ''
+                      }"
+                    >
+
+                      <div>
+
+                        <strong>
+                          ${escapeHTML(
+                            prettyDimension(
+                              d.dimension
+                            )
+                          )}
+                        </strong>
+
+                        <span>
+                          ${d.count}
+                          resposta(s)
+                        </span>
+
+                      </div>
+
+
+                      <b>
+                        ${formatAverage(
+                          d.average
+                        )}
+                      </b>
+
+                    </div>
+
+                  `
+                )
+                .join('')
+
+            : `
+
+                <div class="assessment-empty">
+                  Ainda não existem respostas de escala suficientes para calcular dimensões.
+                </div>
+
+              `
+        }
+
+      </div>
+
+    </section>
+
+
+    <section class="dashboard-panel">
+
+      <div class="panel-header">
+
+        <div>
+
+          <h3>
+            ⚠ Pontos que exigem atenção
+          </h3>
+
+          <p>
+            Alertas derivados dos dados atuais da Jornada.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="attention-list">
+
+        ${
+          attention.length
+
+            ? attention
+                .map(
+                  item => `
+
+                    <div class="attention-item">
+
+                      <span>
+                        !
+                      </span>
+
+                      <div>
+
+                        <strong>
+                          ${escapeHTML(
+                            item.title
+                          )}
+                        </strong>
+
+                        <p>
+                          ${escapeHTML(
+                            item.detail
+                          )}
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                  `
+                )
+                .join('')
+
+            : `
+
+                <div class="success-box">
+                  Nenhum alerta crítico identificado com os dados atuais.
+                </div>
+
+              `
+        }
+
+      </div>
+
     </section>
 
   `;
+
+}
+
+
+async function fetchSubmissions(
+  checkpointIds
+) {
+
+  if (
+    !checkpointIds.length
+  ) {
+
+    return [];
+
+  }
+
+
+  const {
+    data,
+    error
+  } =
+    await journeySupabase
+      .from(
+        'journey_assessment_submissions'
+      )
+      .select(`
+        id,
+        checkpoint_id,
+        employment_id,
+        respondent_type,
+        status,
+        submitted_at,
+        leader_snapshot_id
+      `)
+      .in(
+        'checkpoint_id',
+        checkpointIds
+      );
+
+
+  if (error) {
+
+    throw error;
+
+  }
+
+
+  return data ||
+    [];
+
+}
+
+
+function buildCheckpointSummary(
+  rows,
+  submissions,
+  answers,
+  now
+) {
+
+  return [
+    'D1',
+    'D7',
+    'D15',
+    'D30',
+    'D45',
+    'D90'
+  ]
+    .map(
+      code => {
+
+        const relevant =
+          [];
+
+
+        rows.forEach(
+          employment => {
+
+            const journey =
+              getEmploymentJourney(
+                employment
+              );
+
+
+            relationArray(
+              journey?.journey_checkpoints
+            )
+              .forEach(
+                cp => {
+
+                  if (
+                    cp.checkpoint ===
+                    code
+                    &&
+                    cp.opens_at
+                    &&
+                    new Date(
+                      cp.opens_at
+                    )
+                    <=
+                    now
+                  ) {
+
+                    relevant.push({
+
+                      employment,
+
+                      checkpoint:
+                        cp
+
+                    });
+
+                  }
+
+                }
+              );
+
+          }
+        );
+
+
+        const opened =
+          relevant.length;
+
+
+        const employeeSubmitted =
+          relevant.filter(
+            item =>
+              submissions.some(
+                s =>
+                  s.checkpoint_id ===
+                  item.checkpoint.id
+                  &&
+                  s.respondent_type ===
+                  'EMPLOYEE'
+                  &&
+                  s.status ===
+                  'SUBMITTED'
+              )
+          ).length;
+
+
+        const leaderRows =
+          relevant.filter(
+            item =>
+              !!item.employment.leader_id
+          );
+
+
+        const leaderSubmitted =
+          leaderRows.filter(
+            item =>
+              submissions.some(
+                s =>
+                  s.checkpoint_id ===
+                  item.checkpoint.id
+                  &&
+                  s.respondent_type ===
+                  'LEADER'
+                  &&
+                  s.status ===
+                  'SUBMITTED'
+              )
+          ).length;
+
+
+        const relevantIds =
+          relevant.map(
+            item =>
+              item.checkpoint.id
+          );
+
+
+        const empValues =
+          answers
+            .filter(
+              a => {
+
+                const submission =
+                  relationObject(
+                    a.journey_assessment_submissions
+                  );
+
+
+                return (
+                  relevantIds.includes(
+                    submission?.checkpoint_id
+                  )
+                  &&
+                  submission?.respondent_type ===
+                  'EMPLOYEE'
+                  &&
+                  submission?.status ===
+                  'SUBMITTED'
+                  &&
+                  a.numeric_value !==
+                  null
+                  &&
+                  a.numeric_value !==
+                  undefined
+                );
+
+              }
+            )
+            .map(
+              a =>
+                Number(
+                  a.numeric_value
+                )
+            );
+
+
+        const leaderValues =
+          answers
+            .filter(
+              a => {
+
+                const submission =
+                  relationObject(
+                    a.journey_assessment_submissions
+                  );
+
+
+                return (
+                  relevantIds.includes(
+                    submission?.checkpoint_id
+                  )
+                  &&
+                  submission?.respondent_type ===
+                  'LEADER'
+                  &&
+                  submission?.status ===
+                  'SUBMITTED'
+                  &&
+                  a.numeric_value !==
+                  null
+                  &&
+                  a.numeric_value !==
+                  undefined
+                );
+
+              }
+            )
+            .map(
+              a =>
+                Number(
+                  a.numeric_value
+                )
+            );
+
+
+        const employeeAverage =
+          average(
+            empValues
+          );
+
+
+        const leaderAverage =
+          average(
+            leaderValues
+          );
+
+
+        const gap =
+          employeeAverage !==
+          null
+          &&
+          leaderAverage !==
+          null
+
+            ? employeeAverage -
+              leaderAverage
+
+            : null;
+
+
+        return {
+
+          checkpoint:
+            code,
+
+          opened,
+
+          employeeSubmitted,
+
+          employeePercent:
+            percent(
+              employeeSubmitted,
+              opened
+            ),
+
+          leaderEligible:
+            leaderRows.length,
+
+          leaderSubmitted,
+
+          leaderPercent:
+            percent(
+              leaderSubmitted,
+              leaderRows.length
+            ),
+
+          employeeAverage,
+
+          leaderAverage,
+
+          gap
+
+        };
+
+      }
+    );
+
+}
+
+
+function buildDimensionSummary(
+  answers
+) {
+
+  const map =
+    new Map();
+
+
+  answers.forEach(
+    answer => {
+
+      const submission =
+        relationObject(
+          answer.journey_assessment_submissions
+        );
+
+
+      const question =
+        relationObject(
+          answer.journey_assessment_questions
+        );
+
+
+      if (
+        submission?.status !==
+        'SUBMITTED'
+      ) {
+
+        return;
+
+      }
+
+
+      if (
+        answer.numeric_value ===
+        null
+        ||
+        answer.numeric_value ===
+        undefined
+      ) {
+
+        return;
+
+      }
+
+
+      const dimension =
+        question?.dimension ||
+        'GERAL';
+
+
+      if (
+        !map.has(
+          dimension
+        )
+      ) {
+
+        map.set(
+          dimension,
+          []
+        );
+
+      }
+
+
+      map
+        .get(
+          dimension
+        )
+        .push(
+          Number(
+            answer.numeric_value
+          )
+        );
+
+    }
+  );
+
+
+  return [
+    ...map.entries()
+  ]
+    .map(
+      (
+        [
+          dimension,
+          values
+        ]
+      ) => ({
+
+        dimension,
+
+        average:
+          average(
+            values
+          ),
+
+        count:
+          values.length
+
+      })
+    )
+    .sort(
+      (
+        a,
+        b
+      ) =>
+
+        (
+          a.average
+          ??
+          99
+        )
+
+        -
+
+        (
+          b.average
+          ??
+          99
+        )
+    );
+
+}
+
+
+function buildIndicatorAttention(
+  rows,
+  submissions,
+  dimensionSummary,
+  now
+) {
+
+  const alerts =
+    [];
+
+
+  const active =
+    rows.filter(
+      r =>
+        r.status ===
+        'IN_JOURNEY'
+    );
+
+
+  const noLeader =
+    active.filter(
+      r =>
+        !r.leader_id
+    );
+
+
+  if (
+    noLeader.length
+  ) {
+
+    alerts.push({
+
+      title:
+        `${noLeader.length} colaborador(es) sem líder`,
+
+      detail:
+        'A liderança ainda não foi identificada para jornadas ativas.'
+
+    });
+
+  }
+
+
+  let overdueLeader =
+    0;
+
+
+  let overdueEmployee =
+    0;
+
+
+  active.forEach(
+    employment => {
+
+      const journey =
+        getEmploymentJourney(
+          employment
+        );
+
+
+      relationArray(
+        journey?.journey_checkpoints
+      )
+        .forEach(
+          cp => {
+
+            if (
+              !cp.due_at
+              ||
+              new Date(
+                cp.due_at
+              )
+              >=
+              now
+            ) {
+
+              return;
+
+            }
+
+
+            const empDone =
+              submissions.some(
+                s =>
+                  s.checkpoint_id ===
+                  cp.id
+                  &&
+                  s.respondent_type ===
+                  'EMPLOYEE'
+                  &&
+                  s.status ===
+                  'SUBMITTED'
+              );
+
+
+            const leaderDone =
+              submissions.some(
+                s =>
+                  s.checkpoint_id ===
+                  cp.id
+                  &&
+                  s.respondent_type ===
+                  'LEADER'
+                  &&
+                  s.status ===
+                  'SUBMITTED'
+              );
+
+
+            if (!empDone) {
+
+              overdueEmployee++;
+
+            }
+
+
+            if (
+              employment.leader_id
+              &&
+              !leaderDone
+            ) {
+
+              overdueLeader++;
+
+            }
+
+          }
+        );
+
+    }
+  );
+
+
+  if (
+    overdueEmployee
+  ) {
+
+    alerts.push({
+
+      title:
+        `${overdueEmployee} avaliação(ões) de colaborador em atraso`,
+
+      detail:
+        'Há checkpoints vencidos sem envio do colaborador.'
+
+    });
+
+  }
+
+
+  if (
+    overdueLeader
+  ) {
+
+    alerts.push({
+
+      title:
+        `${overdueLeader} avaliação(ões) de liderança em atraso`,
+
+      detail:
+        'Há checkpoints vencidos com líder definido, mas sem avaliação da liderança.'
+
+    });
+
+  }
+
+
+  dimensionSummary
+    .filter(
+      d =>
+        d.average !==
+        null
+        &&
+        d.average < 3
+    )
+    .forEach(
+      d => {
+
+        alerts.push({
+
+          title:
+            `${prettyDimension(
+              d.dimension
+            )} abaixo de 3,0`,
+
+          detail:
+            `Média atual de ${formatAverage(
+              d.average
+            )} na dimensão.`
+
+        });
+
+      }
+    );
+
+
+  return alerts;
 
 }
 
@@ -3849,7 +5132,9 @@ async function loadSettingsPage() {
           name,
           active
         `)
-        .order('name'),
+        .order(
+          'name'
+        ),
 
       journeySupabase
         .from('operations')
@@ -3864,7 +5149,9 @@ async function loadSettingsPage() {
             name
           )
         `)
-        .order('name'),
+        .order(
+          'name'
+        ),
 
       journeySupabase
         .from('profiles')
@@ -3883,7 +5170,9 @@ async function loadSettingsPage() {
             'LEADER'
           ]
         )
-        .order('full_name')
+        .order(
+          'full_name'
+        )
 
     ]);
 
@@ -4010,8 +5299,7 @@ async function loadSettingsPage() {
     <div
       id="settingsSection"
       style="margin-top:18px"
-    >
-    </div>
+    ></div>
 
   `;
 
@@ -4072,13 +5360,10 @@ function renderSettingsSection(
         <div class="panel-header">
 
           <div>
-
             <h3>
               Regionais
             </h3>
-
           </div>
-
 
           <button
             class="primary-action-button"
@@ -4149,11 +5434,9 @@ function renderSettingsSection(
                   : `
 
                       <tr>
-
                         <td colspan="2">
                           Nenhuma regional.
                         </td>
-
                       </tr>
 
                     `
@@ -4197,13 +5480,10 @@ function renderSettingsSection(
         <div class="panel-header">
 
           <div>
-
             <h3>
               Operações / HUBs
             </h3>
-
           </div>
-
 
           <button
             class="primary-action-button"
@@ -4309,11 +5589,9 @@ function renderSettingsSection(
                   : `
 
                       <tr>
-
                         <td colspan="4">
                           Nenhuma operação.
                         </td>
-
                       </tr>
 
                     `
@@ -4357,13 +5635,10 @@ function renderSettingsSection(
         <div class="panel-header">
 
           <div>
-
             <h3>
               Acessos Corporativos
             </h3>
-
           </div>
-
 
           <button
             class="primary-action-button"
@@ -4457,11 +5732,9 @@ function renderSettingsSection(
                   : `
 
                       <tr>
-
                         <td colspan="4">
                           Nenhum acesso.
                         </td>
-
                       </tr>
 
                     `
@@ -4815,7 +6088,7 @@ async function createCorporateUser() {
 
 
 // ============================================================
-// HELPERS DE UI
+// UI / PERFIL / HELPERS
 // ============================================================
 
 function showPageLoading(
@@ -4871,58 +6144,217 @@ function renderSidebarUser() {
     );
 
 
-  const nameEl =
-    document.getElementById(
-      'sidebarUserName'
+  const nameSelectors = [
+
+    '#sidebarUserName',
+
+    '[data-user-name]',
+
+    '.sidebar-user-name',
+
+    '.user-name',
+
+    '.profile-name',
+
+    '.sidebar-profile strong'
+
+  ];
+
+
+  const roleSelectors = [
+
+    '#sidebarUserRole',
+
+    '[data-user-role]',
+
+    '.sidebar-user-role',
+
+    '.user-role',
+
+    '.profile-role',
+
+    '.sidebar-profile small'
+
+  ];
+
+
+  const avatarSelectors = [
+
+    '#sidebarUserAvatar',
+
+    '[data-user-avatar]',
+
+    '.sidebar-user-avatar',
+
+    '.user-avatar',
+
+    '.profile-avatar'
+
+  ];
+
+
+  setFirstText(
+    nameSelectors,
+    name
+  );
+
+
+  setFirstText(
+    roleSelectors,
+    role
+  );
+
+
+  setFirstText(
+    avatarSelectors,
+    avatar
+  );
+
+
+  // Fallback específico para o rodapé atual
+  const sidebar =
+    document.querySelector(
+      'aside, .sidebar, #sidebar, nav'
     )
     ||
-    document.querySelector(
-      '[data-user-name]'
+    document.body;
+
+
+  const all = [
+    ...sidebar.querySelectorAll(
+      '*'
+    )
+  ];
+
+
+  const loadingNode =
+    all.find(
+      el =>
+        el.children.length ===
+        0
+        &&
+        el.textContent.trim() ===
+        'Carregando...'
     );
 
 
-  const roleEl =
-    document.getElementById(
-      'sidebarUserRole'
-    )
-    ||
-    document.querySelector(
-      '[data-user-role]'
-    );
+  if (
+    loadingNode
+  ) {
 
-
-  const avatarEl =
-    document.getElementById(
-      'sidebarUserAvatar'
-    )
-    ||
-    document.querySelector(
-      '[data-user-avatar]'
-    );
-
-
-  if (nameEl) {
-
-    nameEl.textContent =
+    loadingNode.textContent =
       name;
 
+
+    const parent =
+      loadingNode.parentElement;
+
+
+    if (parent) {
+
+      const roleNode =
+        [
+          ...parent.children
+        ]
+          .find(
+            el =>
+              el !==
+              loadingNode
+              &&
+              el.children.length ===
+              0
+              &&
+              [
+                '...',
+                'Colaborador',
+                'Liderança',
+                'ADMIN / RH',
+                'GESTOR DE RH'
+              ].includes(
+                el.textContent.trim()
+              )
+          );
+
+
+      if (
+        roleNode
+      ) {
+
+        roleNode.textContent =
+          role;
+
+      }
+
+    }
+
   }
 
 
-  if (roleEl) {
+  const avatarCandidate =
+    [
+      ...sidebar.querySelectorAll(
+        'div,span'
+      )
+    ]
+      .find(
+        el =>
+          el.children.length ===
+          0
+          &&
+          el.textContent.trim() ===
+          'U'
+          &&
+          el.getBoundingClientRect().width
+          <=
+          70
+          &&
+          el.getBoundingClientRect().height
+          <=
+          70
+      );
 
-    roleEl.textContent =
-      role;
 
-  }
+  if (
+    avatarCandidate
+  ) {
 
-
-  if (avatarEl) {
-
-    avatarEl.textContent =
+    avatarCandidate.textContent =
       avatar;
 
   }
+
+}
+
+
+function setFirstText(
+  selectors,
+  text
+) {
+
+  for (
+    const selector
+    of selectors
+  ) {
+
+    const el =
+      document.querySelector(
+        selector
+      );
+
+
+    if (el) {
+
+      el.textContent =
+        text;
+
+      return true;
+
+    }
+
+  }
+
+
+  return false;
 
 }
 
@@ -4966,13 +6398,17 @@ function metricCard(
 
       <small>
         ${escapeHTML(
-          String(label)
+          String(
+            label
+          )
         )}
       </small>
 
       <strong>
         ${escapeHTML(
-          String(value)
+          String(
+            value
+          )
         )}
       </strong>
 
@@ -5007,21 +6443,25 @@ function quickAction(
       type="button"
     >
 
-      <span>
+      <span class="quick-action-icon">
         ${icon}
       </span>
 
-      <strong>
-        ${escapeHTML(
-          title
-        )}
-      </strong>
+      <div>
 
-      <small>
-        ${escapeHTML(
-          description
-        )}
-      </small>
+        <strong>
+          ${escapeHTML(
+            title
+          )}
+        </strong>
+
+        <small>
+          ${escapeHTML(
+            description
+          )}
+        </small>
+
+      </div>
 
     </button>
 
@@ -5187,6 +6627,53 @@ function getEmploymentJourney(
 }
 
 
+function collectCheckpointIds(
+  employments
+) {
+
+  const ids =
+    [];
+
+
+  (
+    employments ||
+    []
+  )
+    .forEach(
+      employment => {
+
+        const journey =
+          getEmploymentJourney(
+            employment
+          );
+
+
+        relationArray(
+          journey?.journey_checkpoints
+        )
+          .forEach(
+            cp => {
+
+              ids.push(
+                cp.id
+              );
+
+            }
+          );
+
+      }
+    );
+
+
+  return [
+    ...new Set(
+      ids
+    )
+  ];
+
+}
+
+
 function getCurrentCheckpoint(
   journey
 ) {
@@ -5200,8 +6687,7 @@ function getCurrentCheckpoint(
 
   const checkpoints =
     relationArray(
-      journey
-        .journey_checkpoints
+      journey.journey_checkpoints
     )
       .slice()
       .sort(
@@ -5338,6 +6824,171 @@ function checkpointStateLabel(
 
 
   return 'Disponível';
+
+}
+
+
+function percent(
+  part,
+  total
+) {
+
+  return total
+
+    ? Math.round(
+        (
+          part /
+          total
+        )
+        *
+        100
+      )
+
+    : 0;
+
+}
+
+
+function average(
+  values
+) {
+
+  const valid =
+    values.filter(
+      v =>
+        Number.isFinite(
+          v
+        )
+    );
+
+
+  return valid.length
+
+    ? valid.reduce(
+        (
+          a,
+          b
+        ) =>
+          a + b,
+        0
+      )
+      /
+      valid.length
+
+    : null;
+
+}
+
+
+function formatAverage(
+  value
+) {
+
+  if (
+    value ===
+    null
+    ||
+    value ===
+    undefined
+    ||
+    Number.isNaN(
+      value
+    )
+  ) {
+
+    return '—';
+
+  }
+
+
+  return value
+    .toLocaleString(
+      'pt-BR',
+      {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      }
+    );
+
+}
+
+
+function formatGap(
+  value
+) {
+
+  if (
+    value ===
+    null
+    ||
+    value ===
+    undefined
+    ||
+    Number.isNaN(
+      value
+    )
+  ) {
+
+    return '—';
+
+  }
+
+
+  const sign =
+    value > 0
+
+      ? '+'
+
+      : '';
+
+
+  const cls =
+    Math.abs(
+      value
+    )
+    >=
+    1
+
+      ? 'gap-alert'
+
+      : '';
+
+
+  return `
+
+    <span class="${cls}">
+      ${sign}${value.toLocaleString(
+        'pt-BR',
+        {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1
+        }
+      )}
+    </span>
+
+  `;
+
+}
+
+
+function prettyDimension(
+  value
+) {
+
+  return String(
+    value ||
+    'GERAL'
+  )
+    .replaceAll(
+      '_',
+      ' '
+    )
+    .toLowerCase()
+    .replace(
+      /(^|\s)\S/g,
+      c =>
+        c.toUpperCase()
+    );
 
 }
 
@@ -5561,7 +7212,8 @@ function parseSpreadsheetDate(
   const text =
     String(
       value
-    ).trim();
+    )
+      .trim();
 
 
   if (!text) {
@@ -5719,7 +7371,7 @@ function toISODate(
 
 
 // ============================================================
-// MODAL GLOBAL
+// MODAL
 // ============================================================
 
 function openGenericModal(
@@ -5746,9 +7398,7 @@ function openGenericModal(
   overlay.innerHTML = `
 
     <div class="import-modal">
-
       ${content}
-
     </div>
 
   `;
@@ -5901,6 +7551,320 @@ async function logout() {
 
 
 // ============================================================
+// CSS COMPLEMENTAR
+// ============================================================
+
+function injectAppStyles() {
+
+  if (
+    document.getElementById(
+      'appConsolidatedStyles'
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  const style =
+    document.createElement(
+      'style'
+    );
+
+
+  style.id =
+    'appConsolidatedStyles';
+
+
+  style.textContent = `
+
+    .metric-grid {
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:14px;
+      margin-bottom:18px;
+    }
+
+    .indicators-top-grid {
+      grid-template-columns:repeat(4,minmax(0,1fr));
+    }
+
+    .metric-card {
+      padding:18px;
+      border:1px solid var(--border-color,#e5e7eb);
+      border-radius:14px;
+      background:var(--card-bg,#fff);
+    }
+
+    .metric-card small,
+    .metric-card span {
+      display:block;
+      color:var(--muted-color,#6b7280);
+    }
+
+    .metric-card strong {
+      display:block;
+      font-size:28px;
+      line-height:1.1;
+      margin:5px 0 6px;
+      color:var(--text-color,inherit);
+    }
+
+    .quick-actions-grid {
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:12px;
+      margin-top:14px;
+    }
+
+    .quick-action-card {
+      appearance:none;
+      width:100%;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      text-align:left;
+      padding:16px;
+      border:1px solid var(--border-color,#e5e7eb);
+      border-radius:13px;
+      background:var(--card-bg,#fff);
+      color:inherit;
+      cursor:pointer;
+      transition:.18s ease;
+    }
+
+    .quick-action-card:hover {
+      transform:translateY(-1px);
+      border-color:rgba(238,77,45,.35);
+      box-shadow:0 8px 24px rgba(0,0,0,.05);
+    }
+
+    .quick-action-card strong,
+    .quick-action-card small {
+      display:block;
+    }
+
+    .quick-action-card small {
+      margin-top:3px;
+      color:var(--muted-color,#6b7280);
+    }
+
+    .quick-action-icon {
+      display:flex;
+      width:38px;
+      height:38px;
+      min-width:38px;
+      align-items:center;
+      justify-content:center;
+      border-radius:10px;
+      background:rgba(238,77,45,.10);
+      color:#EE4D2D;
+      font-weight:900;
+    }
+
+    .panel-actions,
+    .row-actions {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .danger-button {
+      border:1px solid rgba(220,38,38,.25);
+      background:rgba(220,38,38,.08);
+      color:#dc2626;
+      border-radius:8px;
+      padding:9px 12px;
+      cursor:pointer;
+      font-weight:700;
+    }
+
+    .success-box {
+      padding:13px 14px;
+      border-radius:10px;
+      background:rgba(22,163,74,.09);
+      border:1px solid rgba(22,163,74,.18);
+    }
+
+    .settings-grid {
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:12px;
+    }
+
+    .settings-card {
+      appearance:none;
+      text-align:left;
+      padding:18px;
+      border:1px solid var(--border-color,#e5e7eb);
+      border-radius:13px;
+      background:var(--card-bg,#fff);
+      color:inherit;
+      cursor:pointer;
+    }
+
+    .settings-card strong,
+    .settings-card span {
+      display:block;
+    }
+
+    .settings-card span {
+      margin-top:5px;
+      color:var(--muted-color,#6b7280);
+    }
+
+    .journey-hero-simple {
+      padding:24px;
+      border-radius:16px;
+      margin-bottom:18px;
+      background:
+        linear-gradient(
+          135deg,
+          rgba(238,77,45,.12),
+          rgba(238,77,45,.03)
+        );
+      border:1px solid rgba(238,77,45,.16);
+    }
+
+    .journey-hero-simple > span {
+      color:#EE4D2D;
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.08em;
+    }
+
+    .journey-hero-simple h2 {
+      margin:6px 0;
+    }
+
+    .journey-hero-simple p {
+      margin:0;
+      color:var(--muted-color,#6b7280);
+    }
+
+    .dimension-grid {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
+    }
+
+    .dimension-card {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      padding:16px;
+      border:1px solid var(--border-color,#e5e7eb);
+      border-radius:12px;
+    }
+
+    .dimension-card strong,
+    .dimension-card span {
+      display:block;
+    }
+
+    .dimension-card span {
+      margin-top:4px;
+      font-size:12px;
+      color:var(--muted-color,#6b7280);
+    }
+
+    .dimension-card b {
+      font-size:24px;
+    }
+
+    .dimension-card.attention {
+      border-color:rgba(220,38,38,.28);
+      background:rgba(220,38,38,.05);
+    }
+
+    .attention-list {
+      display:flex;
+      flex-direction:column;
+      gap:9px;
+    }
+
+    .attention-item {
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      padding:13px;
+      border:1px solid rgba(238,77,45,.16);
+      border-radius:11px;
+    }
+
+    .attention-item > span {
+      display:flex;
+      width:28px;
+      height:28px;
+      min-width:28px;
+      align-items:center;
+      justify-content:center;
+      border-radius:8px;
+      background:rgba(238,77,45,.10);
+      color:#EE4D2D;
+      font-weight:900;
+    }
+
+    .attention-item p {
+      margin:4px 0 0;
+      color:var(--muted-color,#6b7280);
+    }
+
+    .gap-alert {
+      color:#dc2626;
+      font-weight:800;
+    }
+
+
+    @media (
+      max-width:1100px
+    ) {
+
+      .metric-grid,
+      .indicators-top-grid,
+      .quick-actions-grid,
+      .settings-grid {
+        grid-template-columns:
+          repeat(2,minmax(0,1fr));
+      }
+
+      .dimension-grid {
+        grid-template-columns:
+          repeat(2,minmax(0,1fr));
+      }
+
+    }
+
+
+    @media (
+      max-width:700px
+    ) {
+
+      .metric-grid,
+      .indicators-top-grid,
+      .quick-actions-grid,
+      .settings-grid,
+      .dimension-grid {
+        grid-template-columns:1fr;
+      }
+
+    }
+
+  `;
+
+
+  document.head
+    .appendChild(
+      style
+    );
+
+}
+
+
+// ============================================================
 // EXPOSIÇÃO PARA assessments.js
 // ============================================================
 
@@ -5929,5 +7893,5 @@ window.formatDate =
 
 
 console.log(
-  'Shopee Journey: app.js consolidado carregado com sucesso.'
+  'Shopee Journey: app.js consolidado v2 carregado com sucesso.'
 );
