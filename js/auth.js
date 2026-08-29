@@ -1,9 +1,12 @@
 // ============================================================
 // SHOPEE JOURNEY
-// AUTH
+// AUTH — RECUPERAÇÃO DE LOGIN
 // ============================================================
 
+'use strict';
+
 let loginMode = 'corporate';
+let loginInProgress = false;
 
 
 const corporateTab =
@@ -40,516 +43,867 @@ const themeToggle =
   document.getElementById('themeToggle');
 
 
+const AUTH_TIMEOUT_MS = 12000;
+
+
+// ============================================================
+// MENSAGENS
+// ============================================================
+
+function setMessage(
+  message = '',
+  type = ''
+) {
+
+  if (!loginMessage) {
+    return;
+  }
+
+  loginMessage.textContent =
+    message;
+
+  loginMessage.className =
+    type
+      ? `login-message ${type}`
+      : 'login-message';
+
+}
+
+
+// ============================================================
+// BOTÃO
+// ============================================================
+
+function setLoginButtonLoading(
+  loading
+) {
+
+  if (!loginButton) {
+    return;
+  }
+
+  loginButton.disabled =
+    loading;
+
+  loginButton.textContent =
+    loading
+      ? 'Entrando...'
+      : 'Entrar';
+
+}
+
+
+// ============================================================
+// TIMEOUT
+// ============================================================
+
+function withTimeout(
+  promiseLike,
+  timeoutMs,
+  timeoutMessage
+) {
+
+  let timer;
+
+
+  const timeoutPromise =
+    new Promise(
+      (
+        _,
+        reject
+      ) => {
+
+        timer =
+          window.setTimeout(
+            () => {
+
+              reject(
+                new Error(
+                  timeoutMessage
+                )
+              );
+
+            },
+            timeoutMs
+          );
+
+      }
+    );
+
+
+  return Promise.race([
+    Promise.resolve(
+      promiseLike
+    ),
+    timeoutPromise
+  ])
+    .finally(
+      () => {
+
+        window.clearTimeout(
+          timer
+        );
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// ERROS AMIGÁVEIS
+// ============================================================
+
+function friendlyAuthError(
+  error
+) {
+
+  const raw =
+    String(
+      error?.message ||
+      error ||
+      ''
+    ).trim();
+
+
+  const lower =
+    raw.toLowerCase();
+
+
+  if (
+    lower.includes(
+      'invalid login credentials'
+    )
+  ) {
+
+    return loginMode ===
+      'corporate'
+
+      ? 'E-mail ou senha incorretos.'
+
+      : 'CPF ou senha incorretos.';
+
+  }
+
+
+  if (
+    lower.includes(
+      'email not confirmed'
+    )
+  ) {
+
+    return (
+      'Este acesso ainda não foi confirmado no Supabase.'
+    );
+
+  }
+
+
+  if (
+    lower.includes(
+      'too many requests'
+    )
+    ||
+    lower.includes(
+      'rate limit'
+    )
+  ) {
+
+    return (
+      'Muitas tentativas em pouco tempo. Aguarde alguns instantes e tente novamente.'
+    );
+
+  }
+
+
+  if (
+    lower.includes(
+      'failed to fetch'
+    )
+    ||
+    lower.includes(
+      'network'
+    )
+  ) {
+
+    return (
+      'Não foi possível conectar ao Supabase. Verifique a internet e tente novamente.'
+    );
+
+  }
+
+
+  if (
+    lower.includes(
+      'tempo limite'
+    )
+    ||
+    lower.includes(
+      'timeout'
+    )
+  ) {
+
+    return raw;
+
+  }
+
+
+  return (
+    raw ||
+    'Não foi possível realizar o login.'
+  );
+
+}
+
+
 // ============================================================
 // TEMA
 // ============================================================
 
-function loadTheme() {
+function applyTheme(
+  theme
+) {
 
-  const savedTheme =
-    localStorage.getItem(
-      'journey-theme'
-    ) || 'light';
+  const safeTheme =
+    theme === 'dark'
+      ? 'dark'
+      : 'light';
+
 
   document.documentElement
     .setAttribute(
       'data-theme',
-      savedTheme
+      safeTheme
     );
 
-  themeToggle.textContent =
-    savedTheme === 'dark'
-      ? '☀️'
-      : '🌙';
-}
+
+  localStorage.setItem(
+    'journey-theme',
+    safeTheme
+  );
 
 
-themeToggle.addEventListener(
-  'click',
-  () => {
-
-    const currentTheme =
-      document.documentElement
-        .getAttribute(
-          'data-theme'
-        );
-
-    const newTheme =
-      currentTheme === 'dark'
-        ? 'light'
-        : 'dark';
-
-    document.documentElement
-      .setAttribute(
-        'data-theme',
-        newTheme
-      );
-
-    localStorage.setItem(
-      'journey-theme',
-      newTheme
-    );
+  if (
+    themeToggle
+  ) {
 
     themeToggle.textContent =
-      newTheme === 'dark'
+      safeTheme === 'dark'
         ? '☀️'
         : '🌙';
 
   }
-);
+
+}
+
+
+function loadTheme() {
+
+  applyTheme(
+    localStorage.getItem(
+      'journey-theme'
+    )
+    ||
+    'light'
+  );
+
+}
+
+
+if (
+  themeToggle
+) {
+
+  themeToggle.addEventListener(
+    'click',
+    () => {
+
+      const current =
+        document.documentElement
+          .getAttribute(
+            'data-theme'
+          );
+
+
+      applyTheme(
+        current === 'dark'
+          ? 'light'
+          : 'dark'
+      );
+
+    }
+  );
+
+}
 
 
 loadTheme();
 
 
 // ============================================================
-// ALTERAR MODO DE LOGIN
+// ALTERAR MODO
 // ============================================================
 
-function setLoginMode(mode) {
+function setLoginMode(
+  mode
+) {
 
-  loginMode = mode;
+  loginMode =
+    mode === 'employee'
+      ? 'employee'
+      : 'corporate';
 
-  loginMessage.className =
-    'login-message';
 
-  loginMessage.textContent =
-    '';
+  setMessage();
 
-  if (mode === 'corporate') {
 
-    corporateTab
-      .classList
-      .add('active');
+  const corporate =
+    loginMode ===
+    'corporate';
 
-    employeeTab
-      .classList
-      .remove('active');
+
+  corporateTab
+    ?.classList
+    .toggle(
+      'active',
+      corporate
+    );
+
+
+  employeeTab
+    ?.classList
+    .toggle(
+      'active',
+      !corporate
+    );
+
+
+  if (
+    loginLabel
+  ) {
 
     loginLabel.textContent =
-      'E-mail Shopee';
-
-    loginInput.type =
-      'email';
-
-    loginInput.placeholder =
-      'nome@shopee.com';
-
-    loginInput.value =
-      '';
-
-    accessHelp.textContent =
-      'Utilize seu e-mail corporativo Shopee.';
+      corporate
+        ? 'E-mail Shopee'
+        : 'CPF';
 
   }
 
-  else {
 
-    employeeTab
-      .classList
-      .add('active');
-
-    corporateTab
-      .classList
-      .remove('active');
-
-    loginLabel.textContent =
-      'CPF';
+  if (
+    loginInput
+  ) {
 
     loginInput.type =
-      'text';
+      corporate
+        ? 'email'
+        : 'text';
+
+
+    loginInput.inputMode =
+      corporate
+        ? 'email'
+        : 'numeric';
+
 
     loginInput.placeholder =
-      '000.000.000-00';
+      corporate
+        ? 'nome@shopee.com'
+        : '000.000.000-00';
+
 
     loginInput.value =
       '';
 
+
+    loginInput.focus();
+
+  }
+
+
+  if (
+    accessHelp
+  ) {
+
     accessHelp.textContent =
-      'Utilize seu CPF e sua senha de acesso.';
+      corporate
+
+        ? 'Utilize seu e-mail corporativo Shopee.'
+
+        : 'Utilize seu CPF e sua senha de acesso.';
 
   }
 
 }
 
 
-corporateTab.addEventListener(
-  'click',
-  () => setLoginMode(
-    'corporate'
-  )
-);
+corporateTab
+  ?.addEventListener(
+    'click',
+    () =>
+      setLoginMode(
+        'corporate'
+      )
+  );
 
 
-employeeTab.addEventListener(
-  'click',
-  () => setLoginMode(
-    'employee'
-  )
-);
+employeeTab
+  ?.addEventListener(
+    'click',
+    () =>
+      setLoginMode(
+        'employee'
+      )
+  );
 
 
 // ============================================================
 // CPF
 // ============================================================
 
-function normalizeCPF(cpf) {
+function normalizeCPF(
+  value
+) {
 
-  return cpf.replace(
-    /\D/g,
+  return String(
+    value ||
     ''
+  )
+    .replace(
+      /\D/g,
+      ''
+    );
+
+}
+
+
+function employeeInternalEmail(
+  cpf
+) {
+
+  return (
+    `${normalizeCPF(cpf)}@employee.journey.internal`
   );
 
 }
 
 
-function employeeInternalEmail(cpf) {
+function formatCPF(
+  value
+) {
 
-  const cleanCPF =
-    normalizeCPF(cpf);
-
-  return `${cleanCPF}@employee.journey.internal`;
-
-}
-
-
-// Máscara visual
-loginInput.addEventListener(
-  'input',
-  () => {
-
-    if (
-      loginMode !==
-      'employee'
-    ) {
-      return;
-    }
-
-    let value =
-      normalizeCPF(
-        loginInput.value
-      );
-
-    value =
-      value.substring(
+  let cpf =
+    normalizeCPF(
+      value
+    )
+      .slice(
         0,
         11
       );
 
-    value = value.replace(
-      /(\d{3})(\d)/,
-      '$1.$2'
-    );
 
-    value = value.replace(
-      /(\d{3})(\d)/,
-      '$1.$2'
-    );
+  if (
+    cpf.length >
+    9
+  ) {
 
-    value = value.replace(
-      /(\d{3})(\d{1,2})$/,
-      '$1-$2'
-    );
-
-    loginInput.value =
-      value;
+    cpf =
+      cpf.replace(
+        /(\d{3})(\d{3})(\d{3})(\d{0,2})/,
+        '$1.$2.$3-$4'
+      );
 
   }
-);
+
+  else if (
+    cpf.length >
+    6
+  ) {
+
+    cpf =
+      cpf.replace(
+        /(\d{3})(\d{3})(\d{0,3})/,
+        '$1.$2.$3'
+      );
+
+  }
+
+  else if (
+    cpf.length >
+    3
+  ) {
+
+    cpf =
+      cpf.replace(
+        /(\d{3})(\d{0,3})/,
+        '$1.$2'
+      );
+
+  }
+
+
+  return cpf;
+
+}
+
+
+loginInput
+  ?.addEventListener(
+    'input',
+    () => {
+
+      if (
+        loginMode ===
+        'employee'
+      ) {
+
+        loginInput.value =
+          formatCPF(
+            loginInput.value
+          );
+
+      }
+
+    }
+  );
 
 
 // ============================================================
 // MOSTRAR SENHA
 // ============================================================
 
-showPassword.addEventListener(
-  'click',
-  () => {
+showPassword
+  ?.addEventListener(
+    'click',
+    () => {
 
-    const visible =
-      passwordInput.type ===
-      'text';
+      const willShow =
+        passwordInput.type ===
+        'password';
 
-    passwordInput.type =
-      visible
-        ? 'password'
-        : 'text';
 
-    showPassword.textContent =
-      visible
-        ? '👁'
-        : '🙈';
+      passwordInput.type =
+        willShow
+          ? 'text'
+          : 'password';
 
-  }
-);
+
+      showPassword.textContent =
+        willShow
+          ? '🙈'
+          : '👁';
+
+    }
+  );
 
 
 // ============================================================
 // LOGIN
+//
+// IMPORTANTE:
+// ESTA TELA SOMENTE AUTENTICA.
+//
+// A leitura de public.profiles fica para o app.js.
+//
+// Isso evita o travamento em "Entrando..."
+// que estava ocorrendo após a autenticação.
 // ============================================================
 
-loginForm.addEventListener(
-  'submit',
-  async (event) => {
+loginForm
+  ?.addEventListener(
+    'submit',
+    async (
+      event
+    ) => {
 
-    event.preventDefault();
-
-    loginMessage.className =
-      'login-message';
-
-    loginMessage.textContent =
-      '';
-
-    loginButton.disabled =
-      true;
-
-    loginButton.textContent =
-      'Entrando...';
+      event.preventDefault();
 
 
-    try {
-
-      let email;
-
-
-      // CORPORATIVO
       if (
-        loginMode ===
-        'corporate'
+        loginInProgress
       ) {
 
-        email =
-          loginInput
-            .value
-            .trim()
-            .toLowerCase();
+        return;
+
+      }
+
+
+      loginInProgress =
+        true;
+
+
+      setMessage();
+
+      setLoginButtonLoading(
+        true
+      );
+
+
+      try {
 
         if (
-          !email.endsWith(
-            '@shopee.com'
-          )
+          typeof journeySupabase ===
+          'undefined'
         ) {
 
           throw new Error(
-            'Utilize um e-mail corporativo @shopee.com.'
+            'O cliente do Supabase não foi carregado. Atualize a página com Ctrl + F5.'
           );
 
         }
 
-      }
+
+        let email =
+          '';
 
 
-      // COLABORADOR
-      else {
-
-        const cpf =
-          normalizeCPF(
-            loginInput.value
-          );
+        // ======================================================
+        // CORPORATIVO
+        // ======================================================
 
         if (
-          cpf.length !== 11
+          loginMode ===
+          'corporate'
+        ) {
+
+          email =
+            String(
+              loginInput
+                ?.value ||
+              ''
+            )
+              .trim()
+              .toLowerCase();
+
+
+          if (
+            !email.endsWith(
+              '@shopee.com'
+            )
+          ) {
+
+            throw new Error(
+              'Utilize um e-mail corporativo @shopee.com.'
+            );
+
+          }
+
+        }
+
+
+        // ======================================================
+        // COLABORADOR
+        // ======================================================
+
+        else {
+
+          const cpf =
+            normalizeCPF(
+              loginInput
+                ?.value
+            );
+
+
+          if (
+            cpf.length !==
+            11
+          ) {
+
+            throw new Error(
+              'Informe um CPF válido com 11 dígitos.'
+            );
+
+          }
+
+
+          email =
+            employeeInternalEmail(
+              cpf
+            );
+
+        }
+
+
+        const password =
+          String(
+            passwordInput
+              ?.value ||
+            ''
+          );
+
+
+        if (
+          !password
         ) {
 
           throw new Error(
-            'Informe um CPF válido.'
+            'Informe sua senha.'
           );
 
         }
 
-        email =
-          employeeInternalEmail(
-            cpf
+
+        // Remove profile antigo
+        sessionStorage.removeItem(
+          'journey-profile'
+        );
+
+
+        // ======================================================
+        // LOGIN SUPABASE
+        // ======================================================
+
+        const result =
+          await withTimeout(
+
+            journeySupabase
+              .auth
+              .signInWithPassword({
+                email,
+                password
+              }),
+
+            AUTH_TIMEOUT_MS,
+
+            'O Supabase não respondeu dentro de 12 segundos. Tente novamente.'
+
           );
 
+
+        if (
+          result?.error
+        ) {
+
+          throw result.error;
+
+        }
+
+
+        if (
+          !result?.data?.session
+          ||
+          !result?.data?.user
+        ) {
+
+          throw new Error(
+            'O Supabase não retornou uma sessão válida.'
+          );
+
+        }
+
+
+        setMessage(
+          'Acesso confirmado. Abrindo Shopee Journey...',
+          'success'
+        );
+
+
+        // ======================================================
+        // NÃO BUSCA PROFILE AQUI
+        //
+        // app.js já faz a leitura do perfil ao abrir app.html.
+        // ======================================================
+
+        window.location.replace(
+          'app.html'
+        );
+
       }
 
 
-      // LOGIN NO SUPABASE
-      const {
-        data,
+      catch (
         error
-      } =
-        await journeySupabase
-          .auth
-          .signInWithPassword({
-            email:
-              email,
-
-            password:
-              passwordInput.value
-          });
-
-
-      if (error) {
-        throw error;
-      }
-
-
-      if (
-        !data.user
       ) {
 
-        throw new Error(
-          'Não foi possível realizar o login.'
+        console.error(
+          'Erro no login:',
+          error
+        );
+
+
+        setMessage(
+          friendlyAuthError(
+            error
+          ),
+          'error'
         );
 
       }
 
 
-      // ======================================================
-      // PEGAR PERFIL
-      // ======================================================
+      finally {
 
-      const {
-        data: profile,
-        error: profileError
-      } =
-        await journeySupabase
-          .from('profiles')
-          .select(`
-            id,
-            full_name,
-            role,
-            corporate_email,
-            must_change_password,
-            active
-          `)
-          .eq(
-            'id',
-            data.user.id
-          )
-          .single();
+        loginInProgress =
+          false;
 
 
-      if (profileError) {
-        throw profileError;
-      }
-
-
-      if (
-        !profile.active
-      ) {
-
-        await journeySupabase
-          .auth
-          .signOut();
-
-        throw new Error(
-          'Este usuário está inativo.'
+        setLoginButtonLoading(
+          false
         );
 
       }
-
-
-      // ======================================================
-      // VALIDAR PERFIL X TIPO DE LOGIN
-      // ======================================================
-
-      if (
-        loginMode ===
-        'corporate'
-        &&
-        profile.role ===
-        'EMPLOYEE'
-      ) {
-
-        await journeySupabase
-          .auth
-          .signOut();
-
-        throw new Error(
-          'Utilize o acesso de colaborador.'
-        );
-
-      }
-
-
-      if (
-        loginMode ===
-        'employee'
-        &&
-        profile.role !==
-        'EMPLOYEE'
-      ) {
-
-        await journeySupabase
-          .auth
-          .signOut();
-
-        throw new Error(
-          'Utilize o acesso corporativo.'
-        );
-
-      }
-
-
-      // ======================================================
-      // LOGIN OK
-      // ======================================================
-
-      sessionStorage.setItem(
-        'journey-profile',
-        JSON.stringify(
-          profile
-        )
-      );
-
-
-      window.location.href =
-        'app.html';
 
     }
-
-    catch (error) {
-
-      console.error(
-        error
-      );
-
-      loginMessage.textContent =
-        error.message ||
-        'E-mail, CPF ou senha incorretos.';
-
-      loginMessage.className =
-        'login-message error';
-
-    }
-
-    finally {
-
-      loginButton.disabled =
-        false;
-
-      loginButton.textContent =
-        'Entrar';
-
-    }
-
-  }
-);
+  );
 
 
 // ============================================================
-// VERIFICAR SE JÁ ESTÁ LOGADO
+// VERIFICAR SESSÃO EXISTENTE
+//
+// Esta verificação NÃO pode travar o formulário.
 // ============================================================
 
 async function checkExistingSession() {
 
-  const {
-    data
-  } =
-    await journeySupabase
-      .auth
-      .getSession();
+  try {
+
+    const result =
+      await withTimeout(
+
+        journeySupabase
+          .auth
+          .getSession(),
+
+        5000,
+
+        'Tempo limite ao verificar sessão existente.'
+
+      );
 
 
-  if (
-    data.session
+    if (
+      loginInProgress
+    ) {
+
+      return;
+
+    }
+
+
+    if (
+      result
+        ?.data
+        ?.session
+        ?.user
+    ) {
+
+      window.location.replace(
+        'app.html'
+      );
+
+    }
+
+  }
+
+
+  catch (
+    error
   ) {
 
-    window.location.href =
-      'app.html';
+    console.warn(
+      'Não foi possível verificar sessão anterior:',
+      error
+    );
 
   }
 
