@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="pt-BR">
 
 <head>
@@ -33,13 +32,11 @@
     class="sidebar"
   >
 
-
     <div class="sidebar-brand">
 
       <div class="sidebar-logo">
         S
       </div>
-
 
       <div class="sidebar-brand-text">
 
@@ -58,17 +55,13 @@
 
     <nav class="sidebar-menu">
 
-
       <button
         class="menu-item active"
         data-page="dashboard"
         type="button"
       >
-
         <span>⌂</span>
-
         Visão Geral
-
       </button>
 
 
@@ -77,11 +70,8 @@
         data-page="new-employees"
         type="button"
       >
-
         <span>＋</span>
-
         Novos Colaboradores
-
       </button>
 
 
@@ -90,11 +80,8 @@
         data-page="journeys"
         type="button"
       >
-
         <span>↗</span>
-
         Jornadas
-
       </button>
 
 
@@ -103,11 +90,8 @@
         data-page="assessments"
         type="button"
       >
-
         <span>✓</span>
-
         Avaliações
-
       </button>
 
 
@@ -116,11 +100,8 @@
         data-page="pending"
         type="button"
       >
-
         <span>!</span>
-
         Pendências
-
 
         <span
           id="pendingBadge"
@@ -128,7 +109,6 @@
         >
           0
         </span>
-
       </button>
 
 
@@ -137,11 +117,8 @@
         data-page="indicators"
         type="button"
       >
-
         <span>▥</span>
-
         Indicadores
-
       </button>
 
 
@@ -153,11 +130,8 @@
         data-page="settings"
         type="button"
       >
-
         <span>⚙</span>
-
         Configurações
-
       </button>
 
     </nav>
@@ -173,7 +147,6 @@
         >
           U
         </div>
-
 
         <div class="profile-info">
 
@@ -200,9 +173,7 @@
 
   <main class="app-main">
 
-
     <header class="app-header">
-
 
       <div class="header-left">
 
@@ -213,7 +184,6 @@
         >
           ☰
         </button>
-
 
         <div>
 
@@ -241,7 +211,6 @@
           🌙
         </button>
 
-
         <button
           id="logoutButton"
           class="logout-button"
@@ -254,10 +223,6 @@
 
     </header>
 
-
-    <!-- ======================================================
-         CONTEÚDO DINÂMICO
-    ======================================================= -->
 
     <section
       id="pageContent"
@@ -292,17 +257,15 @@
 
   <script src="js/config.js"></script>
 
-  <script src="js/app.js"></script>
-
   <!--
-    Módulo independente de Avaliações.
-    É carregado depois do app principal porque assume
-    somente a rota "assessments".
+    Avaliações é carregado antes do app principal.
+    Assim o app.js já encontra loadAssessmentsPage()
+    quando a rota Avaliações for aberta.
   -->
-
   <script src="js/assessments.js"></script>
+
+  <script src="js/app.js"></script>
 
 
 </body>
-
 </html>
