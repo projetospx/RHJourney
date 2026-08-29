@@ -1,0 +1,6025 @@
+// ============================================================
+// SHOPEE JOURNEY
+// MÓDULO DE AVALIAÇÕES
+//
+// Responsabilidades:
+//
+// - Colaborador:
+//   * vê os próprios checkpoints
+//   * escolhe/altera liderança
+//   * responde avaliação
+//   * salva rascunho
+//   * envia avaliação
+//
+// - Líder:
+//   * vê avaliações da própria equipe
+//   * responde avaliações de liderança
+//
+// - ADMIN_RH:
+//   * visão consolidada
+//   * visualiza respostas
+//
+// - HR_MANAGER:
+//   * visão consolidada somente leitura
+//
+// ============================================================
+
+
+let assessmentEmployments = [];
+
+let assessmentSubmissions = [];
+
+let assessmentQuestions = [];
+
+let assessmentCurrentFilter = {
+  checkpoint: '',
+  status: '',
+  search: '',
+  regional: '',
+  operation: ''
+};
+
+
+// ============================================================
+// INICIALIZAÇÃO DO MÓDULO
+// ============================================================
+
+(function initializeAssessmentModule() {
+
+  injectAssessmentStyles();
+
+
+  const originalOpenPage =
+    openPage;
+
+
+  openPage =
+    async function patchedOpenPage(
+      page
+    ) {
+
+      if (
+        page ===
+        'assessments'
+      ) {
+
+        setActiveMenu(
+          'assessments'
+        );
+
+
+        pageTitle.textContent =
+          currentProfile.role ===
+          'EMPLOYEE'
+            ? 'Minhas Avaliações'
+            : 'Avaliações';
+
+
+        pageSubtitle.textContent =
+          getAssessmentPageSubtitle();
+
+
+        await loadAssessmentsPage();
+
+
+        if (
+          window.innerWidth <=
+          900
+        ) {
+
+          sidebar.classList
+            .remove('open');
+
+        }
+
+
+        return;
+
+      }
+
+
+      return originalOpenPage(
+        page
+      );
+
+    };
+
+})();
+
+
+// ============================================================
+// SUBTÍTULO
+// ============================================================
+
+function getAssessmentPageSubtitle() {
+
+  switch (
+    currentProfile.role
+  ) {
+
+    case 'ADMIN_RH':
+
+      return 'Acompanhe as avaliações dos colaboradores e das lideranças.';
+
+
+    case 'HR_MANAGER':
+
+      return 'Visão gerencial das avaliações das Jornadas.';
+
+
+    case 'LEADER':
+
+      return 'Avalie os colaboradores sob sua responsabilidade.';
+
+
+    case 'EMPLOYEE':
+
+      return 'Responda seus checkpoints ao longo da Jornada.';
+
+
+    default:
+
+      return 'Avaliações do Shopee Journey.';
+
+  }
+
+}
+
+
+// ============================================================
+// ENTRADA
+// ============================================================
+
+async function loadAssessmentsPage() {
+
+  showPageLoading();
+
+
+  try {
+
+    assessmentCurrentFilter = {
+      checkpoint: '',
+      status: '',
+      search: '',
+      regional: '',
+      operation: ''
+    };
+
+
+    if (
+      currentProfile.role ===
+      'EMPLOYEE'
+    ) {
+
+      await loadEmployeeAssessments();
+
+      return;
+
+    }
+
+
+    if (
+      currentProfile.role ===
+      'LEADER'
+    ) {
+
+      await loadLeaderAssessments();
+
+      return;
+
+    }
+
+
+    await loadManagementAssessments();
+
+  }
+
+  catch (error) {
+
+    console.error(
+      'Erro no módulo Avaliações:',
+      error
+    );
+
+
+    pageContent.innerHTML = `
+
+      <div class="system-error">
+
+        <h2>
+          Não foi possível carregar as avaliações
+        </h2>
+
+        <p>
+          ${escapeHTML(
+            error.message
+          )}
+        </p>
+
+      </div>
+
+    `;
+
+  }
+
+}
+
+
+// ============================================================
+// ============================================================
+// COLABORADOR
+// ============================================================
+// ============================================================
+
+async function loadEmployeeAssessments() {
+
+  const {
+    data,
+    error
+  } =
+    await journeySupabase
+      .from('employments')
+      .select(`
+        id,
+        person_id,
+        operation_id,
+        period_id,
+        leader_id,
+        admission_date,
+        work_schedule,
+        status,
+
+        people (
+          id,
+          auth_user_id,
+          full_name
+        ),
+
+        operations (
+          id,
+          name,
+          use_period_filter,
+
+          regionals (
+            id,
+            name
+          )
+        ),
+
+        period:operation_periods!employments_period_id_fkey (
+          id,
+          name
+        ),
+
+        leader:profiles!employments_leader_id_fkey (
+          id,
+          full_name,
+          corporate_email
+        ),
+
+        journeys (
+          id,
+          status,
+          started_at,
+          completed_at,
+
+          journey_checkpoints (
+            id,
+            checkpoint,
+            opens_at,
+            due_at
+          )
+        )
+      `)
+      .order(
+        'admission_date',
+        {
+          ascending: false
+        }
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  const employment =
+    (
+      data ||
+      []
+    )[0];
+
+
+  if (!employment) {
+
+    renderNoEmployeeJourney();
+
+    return;
+
+  }
+
+
+  const journey =
+    getAssessmentJourney(
+      employment
+    );
+
+
+  if (!journey) {
+
+    renderEmployeeJourneyNotStarted(
+      employment
+    );
+
+    return;
+
+  }
+
+
+  const checkpointIds =
+    (
+      journey.journey_checkpoints
+      ||
+      []
+    )
+      .map(
+        checkpoint =>
+          checkpoint.id
+      );
+
+
+  let submissions = [];
+
+
+  if (
+    checkpointIds.length
+  ) {
+
+    const {
+      data: submissionData,
+      error: submissionError
+    } =
+      await journeySupabase
+        .from(
+          'journey_assessment_submissions'
+        )
+        .select(`
+          id,
+          checkpoint_id,
+          respondent_type,
+          respondent_user_id,
+          leader_snapshot_id,
+          status,
+          started_at,
+          submitted_at
+        `)
+        .in(
+          'checkpoint_id',
+          checkpointIds
+        )
+        .eq(
+          'respondent_type',
+          'EMPLOYEE'
+        );
+
+
+    if (submissionError) {
+      throw submissionError;
+    }
+
+
+    submissions =
+      submissionData ||
+      [];
+
+  }
+
+
+  renderEmployeeAssessments(
+    employment,
+    journey,
+    submissions
+  );
+
+}
+
+
+// ============================================================
+// SEM JORNADA
+// ============================================================
+
+function renderNoEmployeeJourney() {
+
+  pageContent.innerHTML = `
+
+    <div class="assessment-empty-large">
+
+      <div class="assessment-empty-icon">
+        ✓
+      </div>
+
+      <h2>
+        Nenhuma Jornada encontrada
+      </h2>
+
+      <p>
+        Ainda não existe uma Jornada vinculada ao seu acesso.
+      </p>
+
+    </div>
+
+  `;
+
+}
+
+
+function renderEmployeeJourneyNotStarted(
+  employment
+) {
+
+  pageContent.innerHTML = `
+
+    ${renderEmployeeLeaderCard(
+      employment
+    )}
+
+
+    <div class="assessment-empty-large">
+
+      <div class="assessment-empty-icon">
+        ⏳
+      </div>
+
+      <h2>
+        Sua Jornada ainda não foi iniciada
+      </h2>
+
+      <p>
+        Assim que a Jornada for iniciada,
+        os checkpoints aparecerão aqui.
+      </p>
+
+    </div>
+
+  `;
+
+
+  bindEmployeeLeaderCard(
+    employment
+  );
+
+}
+
+
+// ============================================================
+// TELA DO COLABORADOR
+// ============================================================
+
+function renderEmployeeAssessments(
+  employment,
+  journey,
+  submissions
+) {
+
+  const checkpoints =
+    (
+      journey.journey_checkpoints
+      ||
+      []
+    )
+      .slice()
+      .sort(
+        sortCheckpoints
+      );
+
+
+  const availableCount =
+    checkpoints.filter(
+      checkpoint => {
+
+        const status =
+          getCheckpointAvailability(
+            checkpoint
+          );
+
+
+        const submission =
+          submissions.find(
+            item =>
+              item.checkpoint_id ===
+              checkpoint.id
+          );
+
+
+        return (
+          status === 'AVAILABLE'
+          &&
+          submission?.status !==
+          'SUBMITTED'
+        );
+
+      }
+    )
+      .length;
+
+
+  const submittedCount =
+    submissions.filter(
+      submission =>
+        submission.status ===
+        'SUBMITTED'
+    )
+      .length;
+
+
+  pageContent.innerHTML = `
+
+    <div class="assessment-welcome">
+
+      <div>
+
+        <span class="assessment-eyebrow">
+          MINHA JORNADA
+        </span>
+
+        <h2>
+          Suas avaliações 🧡
+        </h2>
+
+        <p>
+          Suas respostas ajudam a acompanhar
+          como está sendo sua experiência
+          durante os primeiros 90 dias.
+        </p>
+
+      </div>
+
+      <div class="assessment-progress-number">
+        ${submittedCount}/${checkpoints.length}
+      </div>
+
+    </div>
+
+
+    ${renderEmployeeLeaderCard(
+      employment
+    )}
+
+
+    <div class="assessment-metrics">
+
+      <div class="assessment-metric">
+
+        <span>
+          Disponíveis
+        </span>
+
+        <strong>
+          ${availableCount}
+        </strong>
+
+      </div>
+
+
+      <div class="assessment-metric">
+
+        <span>
+          Respondidas
+        </span>
+
+        <strong>
+          ${submittedCount}
+        </strong>
+
+      </div>
+
+
+      <div class="assessment-metric">
+
+        <span>
+          Total de etapas
+        </span>
+
+        <strong>
+          ${checkpoints.length}
+        </strong>
+
+      </div>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+      <div class="panel-header">
+
+        <div>
+
+          <h3>
+            Linha do tempo
+          </h3>
+
+          <p>
+            Cada etapa será liberada
+            conforme sua Jornada avança.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="assessment-timeline">
+
+        ${
+          checkpoints
+            .map(
+              checkpoint => {
+
+                const submission =
+                  submissions.find(
+                    item =>
+                      item.checkpoint_id ===
+                      checkpoint.id
+                  );
+
+
+                return renderEmployeeCheckpointCard(
+                  checkpoint,
+                  submission
+                );
+
+              }
+            )
+            .join('')
+        }
+
+      </div>
+
+    </section>
+
+  `;
+
+
+  bindEmployeeLeaderCard(
+    employment
+  );
+
+
+  document
+    .querySelectorAll(
+      '.employee-open-assessment'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            openEmployeeAssessment(
+              button.dataset.checkpointId
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  document
+    .querySelectorAll(
+      '.employee-view-assessment'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            openSubmittedAssessmentViewer(
+              button.dataset.submissionId
+            );
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// CARD DA LIDERANÇA DO COLABORADOR
+// ============================================================
+
+function renderEmployeeLeaderCard(
+  employment
+) {
+
+  if (
+    employment.leader
+      ?.full_name
+  ) {
+
+    return `
+
+      <section class="assessment-leader-card">
+
+        <div class="assessment-leader-avatar">
+          ${getInitials(
+            employment
+              .leader
+              .full_name
+          )}
+        </div>
+
+
+        <div class="assessment-leader-info">
+
+          <span>
+            Seu líder atual
+          </span>
+
+          <strong>
+            ${escapeHTML(
+              employment
+                .leader
+                .full_name
+            )}
+          </strong>
+
+          <small>
+            ${escapeHTML(
+              employment
+                .operations
+                ?.name
+              ||
+              ''
+            )}
+          </small>
+
+        </div>
+
+
+        <div class="assessment-leader-actions">
+
+          <button
+            id="employeeLeaderCorrectButton"
+            class="assessment-outline-button"
+            type="button"
+          >
+            ✓ Está correto
+          </button>
+
+
+          <button
+            id="employeeChangeLeaderButton"
+            class="assessment-link-button"
+            type="button"
+          >
+            Meu líder mudou
+          </button>
+
+        </div>
+
+      </section>
+
+    `;
+
+  }
+
+
+  return `
+
+    <section class="assessment-leader-card warning">
+
+      <div class="assessment-leader-avatar">
+        ?
+      </div>
+
+
+      <div class="assessment-leader-info">
+
+        <span>
+          Liderança ainda não identificada
+        </span>
+
+        <strong>
+          Quem é seu líder atualmente?
+        </strong>
+
+        <small>
+          Você pode informar agora ou continuar
+          sua Jornada normalmente.
+        </small>
+
+      </div>
+
+
+      <div class="assessment-leader-actions">
+
+        <button
+          id="employeeChooseLeaderButton"
+          class="primary-action-button"
+          type="button"
+        >
+          Informar meu líder
+        </button>
+
+      </div>
+
+    </section>
+
+  `;
+
+}
+
+
+// ============================================================
+// EVENTOS DA LIDERANÇA
+// ============================================================
+
+function bindEmployeeLeaderCard(
+  employment
+) {
+
+  document
+    .getElementById(
+      'employeeChooseLeaderButton'
+    )
+    ?.addEventListener(
+      'click',
+      () => {
+
+        openEmployeeLeaderSelector(
+          employment
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'employeeChangeLeaderButton'
+    )
+    ?.addEventListener(
+      'click',
+      () => {
+
+        openEmployeeLeaderSelector(
+          employment
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'employeeLeaderCorrectButton'
+    )
+    ?.addEventListener(
+      'click',
+      event => {
+
+        const button =
+          event.currentTarget;
+
+
+        button.textContent =
+          '✓ Confirmado';
+
+
+        button.disabled =
+          true;
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// SELECIONAR LÍDER
+// ============================================================
+
+async function openEmployeeLeaderSelector(
+  employment
+) {
+
+  try {
+
+    const {
+      data,
+      error
+    } =
+      await journeySupabase
+        .rpc(
+          'get_eligible_leaders_for_employment',
+          {
+            p_employment_id:
+              employment.id
+          }
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    const leaders =
+      data || [];
+
+
+    if (!leaders.length) {
+
+      alert(
+        'Nenhuma liderança elegível foi encontrada para sua operação.'
+      );
+
+      return;
+
+    }
+
+
+    openGenericModal(`
+
+      <div class="modal-header">
+
+        <div>
+
+          <h2>
+            Quem é seu líder?
+          </h2>
+
+          <p>
+            Selecione sua liderança atual.
+          </p>
+
+        </div>
+
+
+        <button
+          id="closeGenericModalButton"
+          class="modal-close"
+          type="button"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <div class="assessment-modal-body">
+
+        <div class="assessment-leader-selection">
+
+          ${
+            leaders
+              .map(
+                leader => `
+
+                  <button
+                    class="assessment-leader-option"
+                    type="button"
+                    data-leader-id="${leader.leader_id}"
+                    data-leader-name="${escapeHTML(
+                      leader.full_name
+                    )}"
+                  >
+
+                    <span class="assessment-leader-avatar small">
+                      ${getInitials(
+                        leader.full_name
+                      )}
+                    </span>
+
+
+                    <span>
+
+                      <strong>
+                        ${escapeHTML(
+                          leader.full_name
+                        )}
+                      </strong>
+
+                      <small>
+                        ${
+                          leader.period_name
+
+                            ? escapeHTML(
+                                leader.period_name
+                              )
+
+                            : escapeHTML(
+                                employment
+                                  .operations
+                                  ?.name
+                                ||
+                                ''
+                              )
+                        }
+                      </small>
+
+                    </span>
+
+
+                    ${
+                      employment.leader_id ===
+                      leader.leader_id
+
+                        ? `
+
+                          <b>
+                            Atual
+                          </b>
+
+                        `
+
+                        : `
+                          <b>Selecionar →</b>
+                        `
+                    }
+
+                  </button>
+
+                `
+              )
+              .join('')
+          }
+
+        </div>
+
+      </div>
+
+    `);
+
+
+    document
+      .querySelectorAll(
+        '.assessment-leader-option'
+      )
+      .forEach(
+        button => {
+
+          button.addEventListener(
+            'click',
+            () => {
+
+              employeeSelectLeader(
+                employment,
+                button.dataset.leaderId,
+                button.dataset.leaderName
+              );
+
+            }
+          );
+
+        }
+      );
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    alert(
+      error.message
+      ||
+      'Não foi possível carregar as lideranças.'
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// COLABORADOR DEFINE LÍDER
+// ============================================================
+
+async function employeeSelectLeader(
+  employment,
+  leaderId,
+  leaderName
+) {
+
+  if (
+    employment.leader_id ===
+    leaderId
+  ) {
+
+    closeGenericModal();
+
+    return;
+
+  }
+
+
+  const message =
+    employment.leader_id
+
+      ? `Confirmar alteração da sua liderança para ${leaderName}?`
+
+      : `Confirmar ${leaderName} como seu líder atual?`;
+
+
+  if (
+    !confirm(message)
+  ) {
+    return;
+  }
+
+
+  try {
+
+    const {
+      error
+    } =
+      await journeySupabase
+        .rpc(
+          'set_employment_leader',
+          {
+
+            p_employment_id:
+              employment.id,
+
+            p_new_leader_id:
+              leaderId,
+
+            p_source:
+              'EMPLOYEE_SELECTED',
+
+            p_reason:
+              employment.leader_id
+                ? 'Liderança atualizada pelo colaborador.'
+                : 'Liderança informada pelo colaborador.'
+
+          }
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    closeGenericModal();
+
+
+    await loadEmployeeAssessments();
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    alert(
+      error.message
+      ||
+      'Não foi possível atualizar sua liderança.'
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// CARD DE CHECKPOINT DO COLABORADOR
+// ============================================================
+
+function renderEmployeeCheckpointCard(
+  checkpoint,
+  submission
+) {
+
+  const availability =
+    getCheckpointAvailability(
+      checkpoint
+    );
+
+
+  if (
+    submission?.status ===
+    'SUBMITTED'
+  ) {
+
+    return `
+
+      <div class="assessment-checkpoint-card completed">
+
+        <div class="assessment-checkpoint-code">
+          ${escapeHTML(
+            checkpoint.checkpoint
+          )}
+        </div>
+
+
+        <div class="assessment-checkpoint-info">
+
+          <strong>
+            Avaliação respondida
+          </strong>
+
+          <span>
+            Enviada em
+            ${formatAssessmentDateTime(
+              submission.submitted_at
+            )}
+          </span>
+
+        </div>
+
+
+        <span class="assessment-status success">
+          ✓ Respondida
+        </span>
+
+
+        <button
+          class="assessment-outline-button employee-view-assessment"
+          type="button"
+          data-submission-id="${submission.id}"
+        >
+          Ver respostas
+        </button>
+
+      </div>
+
+    `;
+
+  }
+
+
+  if (
+    availability ===
+    'FUTURE'
+  ) {
+
+    return `
+
+      <div class="assessment-checkpoint-card locked">
+
+        <div class="assessment-checkpoint-code">
+          ${escapeHTML(
+            checkpoint.checkpoint
+          )}
+        </div>
+
+
+        <div class="assessment-checkpoint-info">
+
+          <strong>
+            Em breve
+          </strong>
+
+          <span>
+            Liberação:
+            ${formatAssessmentDate(
+              checkpoint.opens_at
+            )}
+          </span>
+
+        </div>
+
+
+        <span class="assessment-status muted">
+          🔒 Bloqueada
+        </span>
+
+      </div>
+
+    `;
+
+  }
+
+
+  if (
+    availability ===
+    'OVERDUE'
+  ) {
+
+    return `
+
+      <div class="assessment-checkpoint-card attention">
+
+        <div class="assessment-checkpoint-code">
+          ${escapeHTML(
+            checkpoint.checkpoint
+          )}
+        </div>
+
+
+        <div class="assessment-checkpoint-info">
+
+          <strong>
+            Avaliação pendente
+          </strong>
+
+          <span>
+            Prazo original:
+            ${formatAssessmentDate(
+              checkpoint.due_at
+            )}
+          </span>
+
+        </div>
+
+
+        <span class="assessment-status danger">
+          ⚠ Em atraso
+        </span>
+
+
+        <button
+          class="primary-action-button employee-open-assessment"
+          type="button"
+          data-checkpoint-id="${checkpoint.id}"
+        >
+          Responder
+        </button>
+
+      </div>
+
+    `;
+
+  }
+
+
+  return `
+
+    <div class="assessment-checkpoint-card available">
+
+      <div class="assessment-checkpoint-code">
+        ${escapeHTML(
+          checkpoint.checkpoint
+        )}
+      </div>
+
+
+      <div class="assessment-checkpoint-info">
+
+        <strong>
+          ${
+            submission?.status ===
+            'DRAFT'
+              ? 'Continuar avaliação'
+              : 'Avaliação disponível'
+          }
+        </strong>
+
+        <span>
+          Prazo:
+          ${formatAssessmentDate(
+            checkpoint.due_at
+          )}
+        </span>
+
+      </div>
+
+
+      <span class="assessment-status warning">
+        ${
+          submission?.status ===
+          'DRAFT'
+            ? 'Rascunho'
+            : 'Disponível'
+        }
+      </span>
+
+
+      <button
+        class="primary-action-button employee-open-assessment"
+        type="button"
+        data-checkpoint-id="${checkpoint.id}"
+      >
+        ${
+          submission?.status ===
+          'DRAFT'
+            ? 'Continuar'
+            : 'Responder'
+        }
+      </button>
+
+    </div>
+
+  `;
+
+}
+
+
+// ============================================================
+// ABRIR AVALIAÇÃO DO COLABORADOR
+// ============================================================
+
+async function openEmployeeAssessment(
+  checkpointId
+) {
+
+  try {
+
+    const {
+      data: submissionId,
+      error
+    } =
+      await journeySupabase
+        .rpc(
+          'get_or_create_employee_assessment',
+          {
+            p_checkpoint_id:
+              checkpointId
+          }
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    await openAssessmentForm(
+      submissionId
+    );
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    alert(
+      error.message
+      ||
+      'Não foi possível abrir a avaliação.'
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// ============================================================
+// LIDERANÇA
+// ============================================================
+// ============================================================
+
+async function loadLeaderAssessments() {
+
+  const {
+    data: employments,
+    error
+  } =
+    await journeySupabase
+      .from('employments')
+      .select(`
+        id,
+        leader_id,
+        admission_date,
+        status,
+
+        people (
+          id,
+          full_name,
+          cpf
+        ),
+
+        operations (
+          id,
+          name,
+
+          regionals (
+            id,
+            name
+          )
+        ),
+
+        journeys (
+          id,
+          status,
+
+          journey_checkpoints (
+            id,
+            checkpoint,
+            opens_at,
+            due_at
+          )
+        )
+      `)
+      .eq(
+        'leader_id',
+        currentProfile.id
+      )
+      .order(
+        'admission_date',
+        {
+          ascending: false
+        }
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  assessmentEmployments =
+    employments ||
+    [];
+
+
+  const checkpointIds =
+    collectCheckpointIds(
+      assessmentEmployments
+    );
+
+
+  let submissions = [];
+
+
+  if (
+    checkpointIds.length
+  ) {
+
+    const {
+      data,
+      error: submissionsError
+    } =
+      await journeySupabase
+        .from(
+          'journey_assessment_submissions'
+        )
+        .select(`
+          id,
+          checkpoint_id,
+          employment_id,
+          respondent_type,
+          respondent_user_id,
+          leader_snapshot_id,
+          status,
+          started_at,
+          submitted_at
+        `)
+        .in(
+          'checkpoint_id',
+          checkpointIds
+        )
+        .eq(
+          'respondent_type',
+          'LEADER'
+        );
+
+
+    if (submissionsError) {
+      throw submissionsError;
+    }
+
+
+    submissions =
+      data || [];
+
+  }
+
+
+  assessmentSubmissions =
+    submissions;
+
+
+  renderLeaderAssessmentPage();
+
+}
+
+
+// ============================================================
+// TELA DO LÍDER
+// ============================================================
+
+function renderLeaderAssessmentPage() {
+
+  const items =
+    buildLeaderAssessmentItems();
+
+
+  const pending =
+    items.filter(
+      item =>
+        item.status ===
+        'AVAILABLE'
+        ||
+        item.status ===
+        'DRAFT'
+        ||
+        item.status ===
+        'OVERDUE'
+    );
+
+
+  const submitted =
+    items.filter(
+      item =>
+        item.status ===
+        'SUBMITTED'
+    );
+
+
+  pageContent.innerHTML = `
+
+    <div class="assessment-welcome">
+
+      <div>
+
+        <span class="assessment-eyebrow">
+          AVALIAÇÕES DA EQUIPE
+        </span>
+
+        <h2>
+          Acompanhamento da liderança
+        </h2>
+
+        <p>
+          Avalie o desenvolvimento dos colaboradores
+          que estão sob sua responsabilidade.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="assessment-metrics">
+
+      <div class="assessment-metric">
+
+        <span>
+          Aguardando você
+        </span>
+
+        <strong>
+          ${pending.length}
+        </strong>
+
+      </div>
+
+
+      <div class="assessment-metric">
+
+        <span>
+          Respondidas
+        </span>
+
+        <strong>
+          ${submitted.length}
+        </strong>
+
+      </div>
+
+
+      <div class="assessment-metric">
+
+        <span>
+          Colaboradores
+        </span>
+
+        <strong>
+          ${assessmentEmployments.length}
+        </strong>
+
+      </div>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+      <div class="settings-toolbar">
+
+        <input
+          id="leaderAssessmentSearch"
+          type="search"
+          placeholder="Buscar colaborador..."
+        >
+
+
+        <select id="leaderAssessmentCheckpoint">
+
+          <option value="">
+            Todos os checkpoints
+          </option>
+
+          ${renderCheckpointOptions()}
+
+        </select>
+
+
+        <select id="leaderAssessmentStatus">
+
+          <option value="">
+            Todos os status
+          </option>
+
+          <option value="AVAILABLE">
+            Disponível
+          </option>
+
+          <option value="DRAFT">
+            Rascunho
+          </option>
+
+          <option value="OVERDUE">
+            Em atraso
+          </option>
+
+          <option value="SUBMITTED">
+            Respondida
+          </option>
+
+          <option value="FUTURE">
+            Ainda não liberada
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div id="leaderAssessmentList"></div>
+
+    </section>
+
+  `;
+
+
+  document
+    .getElementById(
+      'leaderAssessmentSearch'
+    )
+    ?.addEventListener(
+      'input',
+      renderLeaderAssessmentRows
+    );
+
+
+  document
+    .getElementById(
+      'leaderAssessmentCheckpoint'
+    )
+    ?.addEventListener(
+      'change',
+      renderLeaderAssessmentRows
+    );
+
+
+  document
+    .getElementById(
+      'leaderAssessmentStatus'
+    )
+    ?.addEventListener(
+      'change',
+      renderLeaderAssessmentRows
+    );
+
+
+  renderLeaderAssessmentRows();
+
+}
+
+
+// ============================================================
+// ITENS DO LÍDER
+// ============================================================
+
+function buildLeaderAssessmentItems() {
+
+  const items = [];
+
+
+  assessmentEmployments
+    .forEach(
+      employment => {
+
+        const journey =
+          getAssessmentJourney(
+            employment
+          );
+
+
+        if (!journey) {
+          return;
+        }
+
+
+        (
+          journey.journey_checkpoints
+          ||
+          []
+        )
+          .forEach(
+            checkpoint => {
+
+              const submission =
+                assessmentSubmissions
+                  .find(
+                    item =>
+                      item.checkpoint_id ===
+                      checkpoint.id
+                  );
+
+
+              let status;
+
+
+              if (
+                submission?.status ===
+                'SUBMITTED'
+              ) {
+
+                status =
+                  'SUBMITTED';
+
+              }
+
+              else if (
+                submission?.status ===
+                'DRAFT'
+              ) {
+
+                status =
+                  'DRAFT';
+
+              }
+
+              else {
+
+                status =
+                  getCheckpointAvailability(
+                    checkpoint
+                  );
+
+              }
+
+
+              items.push({
+
+                employment,
+                checkpoint,
+                submission,
+                status
+
+              });
+
+            }
+          );
+
+      }
+    );
+
+
+  return items;
+
+}
+
+
+// ============================================================
+// TABELA DO LÍDER
+// ============================================================
+
+function renderLeaderAssessmentRows() {
+
+  const container =
+    document.getElementById(
+      'leaderAssessmentList'
+    );
+
+
+  if (!container) {
+    return;
+  }
+
+
+  const search =
+    (
+      document
+        .getElementById(
+          'leaderAssessmentSearch'
+        )
+        ?.value
+      ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const checkpointFilter =
+    document
+      .getElementById(
+        'leaderAssessmentCheckpoint'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const statusFilter =
+    document
+      .getElementById(
+        'leaderAssessmentStatus'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const items =
+    buildLeaderAssessmentItems()
+      .filter(
+        item => {
+
+          const name =
+            item.employment
+              .people
+              ?.full_name
+              ?.toLowerCase()
+            ||
+            '';
+
+
+          return (
+
+            (
+              !search
+              ||
+              name.includes(search)
+            )
+
+            &&
+
+            (
+              !checkpointFilter
+              ||
+              item.checkpoint
+                .checkpoint ===
+                checkpointFilter
+            )
+
+            &&
+
+            (
+              !statusFilter
+              ||
+              item.status ===
+                statusFilter
+            )
+
+          );
+
+        }
+      );
+
+
+  if (!items.length) {
+
+    container.innerHTML = `
+
+      <div class="empty-state">
+
+        <strong>
+          Nenhuma avaliação encontrada
+        </strong>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  container.innerHTML = `
+
+    <div class="table-wrapper">
+
+      <table class="journey-table">
+
+        <thead>
+
+          <tr>
+
+            <th>
+              Colaborador
+            </th>
+
+            <th>
+              Operação
+            </th>
+
+            <th>
+              Etapa
+            </th>
+
+            <th>
+              Prazo
+            </th>
+
+            <th>
+              Status
+            </th>
+
+            <th>
+              Ação
+            </th>
+
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            items
+              .map(
+                item => `
+
+                  <tr>
+
+                    <td>
+
+                      <strong>
+                        ${escapeHTML(
+                          item.employment
+                            .people
+                            ?.full_name
+                          ||
+                          ''
+                        )}
+                      </strong>
+
+                      <span class="table-subtext">
+
+                        Admissão:
+                        ${formatDateBR(
+                          item.employment
+                            .admission_date
+                        )}
+
+                      </span>
+
+                    </td>
+
+
+                    <td>
+
+                      ${escapeHTML(
+                        item.employment
+                          .operations
+                          ?.name
+                        ||
+                        '-'
+                      )}
+
+                    </td>
+
+
+                    <td>
+
+                      <strong>
+                        ${escapeHTML(
+                          item.checkpoint
+                            .checkpoint
+                        )}
+                      </strong>
+
+                    </td>
+
+
+                    <td>
+
+                      ${formatAssessmentDate(
+                        item.checkpoint
+                          .due_at
+                      )}
+
+                    </td>
+
+
+                    <td>
+
+                      ${renderAssessmentStatus(
+                        item.status
+                      )}
+
+                    </td>
+
+
+                    <td>
+
+                      ${renderLeaderAssessmentAction(
+                        item
+                      )}
+
+                    </td>
+
+                  </tr>
+
+                `
+              )
+              .join('')
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  `;
+
+
+  container
+    .querySelectorAll(
+      '.leader-open-assessment'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            openLeaderAssessment(
+              button.dataset.checkpointId
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
+      '.leader-view-assessment'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            openSubmittedAssessmentViewer(
+              button.dataset.submissionId
+            );
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// AÇÃO DO LÍDER
+// ============================================================
+
+function renderLeaderAssessmentAction(
+  item
+) {
+
+  if (
+    item.status ===
+    'SUBMITTED'
+  ) {
+
+    return `
+
+      <button
+        class="assessment-outline-button leader-view-assessment"
+        type="button"
+        data-submission-id="${item.submission.id}"
+      >
+        Ver
+      </button>
+
+    `;
+
+  }
+
+
+  if (
+    item.status ===
+    'FUTURE'
+  ) {
+
+    return `
+      <span class="table-subtext">
+        Ainda não disponível
+      </span>
+    `;
+
+  }
+
+
+  return `
+
+    <button
+      class="primary-action-button leader-open-assessment"
+      type="button"
+      data-checkpoint-id="${item.checkpoint.id}"
+    >
+
+      ${
+        item.status ===
+        'DRAFT'
+          ? 'Continuar'
+          : 'Responder'
+      }
+
+    </button>
+
+  `;
+
+}
+
+
+// ============================================================
+// ABRIR AVALIAÇÃO DO LÍDER
+// ============================================================
+
+async function openLeaderAssessment(
+  checkpointId
+) {
+
+  try {
+
+    const {
+      data: submissionId,
+      error
+    } =
+      await journeySupabase
+        .rpc(
+          'get_or_create_leader_assessment',
+          {
+            p_checkpoint_id:
+              checkpointId
+          }
+        );
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    await openAssessmentForm(
+      submissionId
+    );
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    alert(
+      error.message
+      ||
+      'Não foi possível abrir a avaliação.'
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// ============================================================
+// ADM / GESTOR RH
+// ============================================================
+// ============================================================
+
+async function loadManagementAssessments() {
+
+  const {
+    data: employments,
+    error
+  } =
+    await journeySupabase
+      .from('employments')
+      .select(`
+        id,
+        leader_id,
+        operation_id,
+        admission_date,
+        status,
+
+        people (
+          id,
+          full_name,
+          cpf
+        ),
+
+        bpos (
+          id,
+          name
+        ),
+
+        operations (
+          id,
+          name,
+          regional_id,
+
+          regionals (
+            id,
+            name
+          )
+        ),
+
+        leader:profiles!employments_leader_id_fkey (
+          id,
+          full_name
+        ),
+
+        journeys (
+          id,
+          status,
+
+          journey_checkpoints (
+            id,
+            checkpoint,
+            opens_at,
+            due_at
+          )
+        )
+      `)
+      .order(
+        'admission_date',
+        {
+          ascending: false
+        }
+      );
+
+
+  if (error) {
+    throw error;
+  }
+
+
+  assessmentEmployments =
+    employments ||
+    [];
+
+
+  const checkpointIds =
+    collectCheckpointIds(
+      assessmentEmployments
+    );
+
+
+  let submissions = [];
+
+
+  if (
+    checkpointIds.length
+  ) {
+
+    const {
+      data,
+      error: submissionsError
+    } =
+      await journeySupabase
+        .from(
+          'journey_assessment_submissions'
+        )
+        .select(`
+          id,
+          checkpoint_id,
+          employment_id,
+          respondent_type,
+          respondent_user_id,
+          leader_snapshot_id,
+          status,
+          started_at,
+          submitted_at,
+
+          respondent:profiles!journey_assessment_submissions_respondent_user_id_fkey (
+            id,
+            full_name
+          ),
+
+          leader_snapshot:profiles!journey_assessment_submissions_leader_snapshot_id_fkey (
+            id,
+            full_name
+          )
+        `)
+        .in(
+          'checkpoint_id',
+          checkpointIds
+        );
+
+
+    if (submissionsError) {
+      throw submissionsError;
+    }
+
+
+    submissions =
+      data || [];
+
+  }
+
+
+  assessmentSubmissions =
+    submissions;
+
+
+  renderManagementAssessmentPage();
+
+}
+
+
+// ============================================================
+// TELA RH
+// ============================================================
+
+function renderManagementAssessmentPage() {
+
+  const items =
+    buildManagementAssessmentItems();
+
+
+  const employeeSubmitted =
+    items.filter(
+      item =>
+        item.employeeStatus ===
+        'SUBMITTED'
+    )
+      .length;
+
+
+  const leaderSubmitted =
+    items.filter(
+      item =>
+        item.leaderStatus ===
+        'SUBMITTED'
+    )
+      .length;
+
+
+  const attention =
+    items.filter(
+      item =>
+        item.employeeStatus ===
+        'OVERDUE'
+        ||
+        item.leaderStatus ===
+        'OVERDUE'
+        ||
+        item.leaderStatus ===
+        'NO_LEADER'
+    )
+      .length;
+
+
+  pageContent.innerHTML = `
+
+    <div class="assessment-module-header">
+
+      <div>
+
+        <span class="assessment-eyebrow">
+          AVALIAÇÕES DA JORNADA
+        </span>
+
+        <h2>
+          D1 → D90
+        </h2>
+
+        <p>
+          Compare a percepção do colaborador
+          com a avaliação da liderança.
+        </p>
+
+      </div>
+
+
+      <div class="assessment-tab-group">
+
+        <button
+          class="assessment-tab active"
+          type="button"
+        >
+          Jornada
+        </button>
+
+
+        <button
+          id="leadershipAssessmentFutureTab"
+          class="assessment-tab"
+          type="button"
+        >
+          Liderança
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <div class="assessment-metrics">
+
+      <div class="assessment-metric">
+
+        <span>
+          Respostas dos colaboradores
+        </span>
+
+        <strong>
+          ${employeeSubmitted}
+        </strong>
+
+      </div>
+
+
+      <div class="assessment-metric">
+
+        <span>
+          Respostas das lideranças
+        </span>
+
+        <strong>
+          ${leaderSubmitted}
+        </strong>
+
+      </div>
+
+
+      <div class="assessment-metric attention">
+
+        <span>
+          Pontos de atenção
+        </span>
+
+        <strong>
+          ${attention}
+        </strong>
+
+      </div>
+
+    </div>
+
+
+    <section class="dashboard-panel">
+
+      <div class="settings-toolbar">
+
+        <input
+          id="managementAssessmentSearch"
+          type="search"
+          placeholder="Buscar colaborador..."
+        >
+
+
+        <select
+          id="managementAssessmentRegional"
+        >
+
+          <option value="">
+            Todas as Regionais
+          </option>
+
+          ${renderAssessmentRegionalOptions()}
+
+        </select>
+
+
+        <select
+          id="managementAssessmentOperation"
+        >
+
+          <option value="">
+            Todas as Operações
+          </option>
+
+          ${renderAssessmentOperationOptions()}
+
+        </select>
+
+
+        <select
+          id="managementAssessmentCheckpoint"
+        >
+
+          <option value="">
+            Todos os checkpoints
+          </option>
+
+          ${renderCheckpointOptions()}
+
+        </select>
+
+
+        <select
+          id="managementAssessmentStatus"
+        >
+
+          <option value="">
+            Todos os status
+          </option>
+
+          <option value="ATTENTION">
+            Exige atuação
+          </option>
+
+          <option value="SUBMITTED">
+            Concluídas
+          </option>
+
+          <option value="AVAILABLE">
+            Disponíveis
+          </option>
+
+          <option value="FUTURE">
+            Futuras
+          </option>
+
+        </select>
+
+      </div>
+
+
+      <div id="managementAssessmentList"></div>
+
+    </section>
+
+  `;
+
+
+  document
+    .getElementById(
+      'leadershipAssessmentFutureTab'
+    )
+    ?.addEventListener(
+      'click',
+      () => {
+
+        alert(
+          'A Avaliação da Liderança será a próxima frente dentro deste módulo.'
+        );
+
+      }
+    );
+
+
+  [
+    'managementAssessmentSearch',
+    'managementAssessmentRegional',
+    'managementAssessmentOperation',
+    'managementAssessmentCheckpoint',
+    'managementAssessmentStatus'
+  ]
+    .forEach(
+      id => {
+
+        const element =
+          document
+            .getElementById(id);
+
+
+        if (!element) {
+          return;
+        }
+
+
+        element.addEventListener(
+          id ===
+          'managementAssessmentSearch'
+            ? 'input'
+            : 'change',
+          renderManagementAssessmentRows
+        );
+
+      }
+    );
+
+
+  renderManagementAssessmentRows();
+
+}
+
+
+// ============================================================
+// ITENS GERENCIAIS
+// ============================================================
+
+function buildManagementAssessmentItems() {
+
+  const items = [];
+
+
+  assessmentEmployments
+    .forEach(
+      employment => {
+
+        const journey =
+          getAssessmentJourney(
+            employment
+          );
+
+
+        if (!journey) {
+          return;
+        }
+
+
+        (
+          journey.journey_checkpoints
+          ||
+          []
+        )
+          .forEach(
+            checkpoint => {
+
+              const employeeSubmission =
+                assessmentSubmissions
+                  .find(
+                    submission =>
+
+                      submission
+                        .checkpoint_id ===
+                        checkpoint.id
+
+                      &&
+
+                      submission
+                        .respondent_type ===
+                        'EMPLOYEE'
+
+                  );
+
+
+              const leaderSubmission =
+                assessmentSubmissions
+                  .find(
+                    submission =>
+
+                      submission
+                        .checkpoint_id ===
+                        checkpoint.id
+
+                      &&
+
+                      submission
+                        .respondent_type ===
+                        'LEADER'
+
+                  );
+
+
+              const employeeStatus =
+                getAssessmentSideStatus(
+
+                  checkpoint,
+
+                  employeeSubmission,
+
+                  true
+
+                );
+
+
+              let leaderStatus;
+
+
+              if (
+                !employment.leader_id
+                &&
+                !leaderSubmission
+              ) {
+
+                leaderStatus =
+                  'NO_LEADER';
+
+              }
+
+              else {
+
+                leaderStatus =
+                  getAssessmentSideStatus(
+
+                    checkpoint,
+
+                    leaderSubmission,
+
+                    false
+
+                  );
+
+              }
+
+
+              items.push({
+
+                employment,
+
+                checkpoint,
+
+                employeeSubmission,
+
+                leaderSubmission,
+
+                employeeStatus,
+
+                leaderStatus
+
+              });
+
+            }
+          );
+
+      }
+    );
+
+
+  return items;
+
+}
+
+
+// ============================================================
+// TABELA GERENCIAL
+// ============================================================
+
+function renderManagementAssessmentRows() {
+
+  const container =
+    document.getElementById(
+      'managementAssessmentList'
+    );
+
+
+  if (!container) {
+    return;
+  }
+
+
+  const search =
+    (
+      document
+        .getElementById(
+          'managementAssessmentSearch'
+        )
+        ?.value
+      ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const regional =
+    document
+      .getElementById(
+        'managementAssessmentRegional'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const operation =
+    document
+      .getElementById(
+        'managementAssessmentOperation'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const checkpoint =
+    document
+      .getElementById(
+        'managementAssessmentCheckpoint'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const status =
+    document
+      .getElementById(
+        'managementAssessmentStatus'
+      )
+      ?.value
+    ||
+    '';
+
+
+  const items =
+    buildManagementAssessmentItems()
+      .filter(
+        item => {
+
+          const employment =
+            item.employment;
+
+
+          const name =
+            employment
+              .people
+              ?.full_name
+              ?.toLowerCase()
+            ||
+            '';
+
+
+          const searchOk =
+            !search
+            ||
+            name.includes(search)
+            ||
+            (
+              employment
+                .people
+                ?.cpf
+              ||
+              ''
+            )
+              .includes(search);
+
+
+          const regionalOk =
+            !regional
+            ||
+            employment
+              .operations
+              ?.regional_id ===
+              regional;
+
+
+          const operationOk =
+            !operation
+            ||
+            employment
+              .operation_id ===
+              operation;
+
+
+          const checkpointOk =
+            !checkpoint
+            ||
+            item.checkpoint
+              .checkpoint ===
+              checkpoint;
+
+
+          let statusOk =
+            true;
+
+
+          if (
+            status ===
+            'ATTENTION'
+          ) {
+
+            statusOk =
+              item.employeeStatus ===
+              'OVERDUE'
+              ||
+              item.leaderStatus ===
+              'OVERDUE'
+              ||
+              item.leaderStatus ===
+              'NO_LEADER';
+
+          }
+
+
+          else if (
+            status ===
+            'SUBMITTED'
+          ) {
+
+            statusOk =
+              item.employeeStatus ===
+              'SUBMITTED'
+              &&
+              item.leaderStatus ===
+              'SUBMITTED';
+
+          }
+
+
+          else if (
+            status ===
+            'AVAILABLE'
+          ) {
+
+            statusOk =
+              [
+                'AVAILABLE',
+                'DRAFT'
+              ]
+                .includes(
+                  item.employeeStatus
+                )
+              ||
+              [
+                'AVAILABLE',
+                'DRAFT'
+              ]
+                .includes(
+                  item.leaderStatus
+                );
+
+          }
+
+
+          else if (
+            status ===
+            'FUTURE'
+          ) {
+
+            statusOk =
+              item.employeeStatus ===
+              'FUTURE';
+
+          }
+
+
+          return (
+
+            searchOk
+            &&
+            regionalOk
+            &&
+            operationOk
+            &&
+            checkpointOk
+            &&
+            statusOk
+
+          );
+
+        }
+      );
+
+
+  if (!items.length) {
+
+    container.innerHTML = `
+
+      <div class="empty-state">
+
+        <strong>
+          Nenhuma avaliação encontrada
+        </strong>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  container.innerHTML = `
+
+    <div class="table-wrapper">
+
+      <table class="journey-table">
+
+        <thead>
+
+          <tr>
+
+            <th>
+              Colaborador
+            </th>
+
+            <th>
+              Operação
+            </th>
+
+            <th>
+              BPO
+            </th>
+
+            <th>
+              Etapa
+            </th>
+
+            <th>
+              Colaborador
+            </th>
+
+            <th>
+              Liderança
+            </th>
+
+            <th>
+              Prazo
+            </th>
+
+          </tr>
+
+        </thead>
+
+
+        <tbody>
+
+          ${
+            items
+              .map(
+                item => `
+
+                  <tr>
+
+                    <td>
+
+                      <strong>
+                        ${escapeHTML(
+                          item.employment
+                            .people
+                            ?.full_name
+                          ||
+                          ''
+                        )}
+                      </strong>
+
+                      <span class="table-subtext">
+
+                        ${
+                          item.employment
+                            .leader
+                            ?.full_name
+
+                            ? `Líder: ${escapeHTML(
+                                item.employment
+                                  .leader
+                                  .full_name
+                              )}`
+
+                            : 'Líder ainda não definido'
+                        }
+
+                      </span>
+
+                    </td>
+
+
+                    <td>
+
+                      ${escapeHTML(
+                        item.employment
+                          .operations
+                          ?.name
+                        ||
+                        '-'
+                      )}
+
+                    </td>
+
+
+                    <td>
+
+                      ${escapeHTML(
+                        item.employment
+                          .bpos
+                          ?.name
+                        ||
+                        '-'
+                      )}
+
+                    </td>
+
+
+                    <td>
+
+                      <strong>
+                        ${escapeHTML(
+                          item.checkpoint
+                            .checkpoint
+                        )}
+                      </strong>
+
+                    </td>
+
+
+                    <td>
+
+                      ${renderManagementAssessmentSide(
+                        item.employeeStatus,
+                        item.employeeSubmission
+                      )}
+
+                    </td>
+
+
+                    <td>
+
+                      ${renderManagementAssessmentSide(
+                        item.leaderStatus,
+                        item.leaderSubmission
+                      )}
+
+                    </td>
+
+
+                    <td>
+
+                      ${formatAssessmentDate(
+                        item.checkpoint
+                          .due_at
+                      )}
+
+                    </td>
+
+                  </tr>
+
+                `
+              )
+              .join('')
+          }
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  `;
+
+
+  container
+    .querySelectorAll(
+      '.management-view-submission'
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          'click',
+          () => {
+
+            openSubmittedAssessmentViewer(
+              button.dataset.submissionId
+            );
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// STATUS GERENCIAL
+// ============================================================
+
+function renderManagementAssessmentSide(
+  status,
+  submission
+) {
+
+  if (
+    status ===
+    'SUBMITTED'
+  ) {
+
+    return `
+
+      <button
+        class="assessment-status-button success management-view-submission"
+        type="button"
+        data-submission-id="${submission.id}"
+      >
+        ✓ Respondida
+      </button>
+
+    `;
+
+  }
+
+
+  if (
+    status ===
+    'NO_LEADER'
+  ) {
+
+    return `
+
+      <span class="assessment-status danger">
+        ⚠ Sem líder
+      </span>
+
+    `;
+
+  }
+
+
+  return renderAssessmentStatus(
+    status
+  );
+
+}
+
+
+// ============================================================
+// ============================================================
+// FORMULÁRIO
+// ============================================================
+// ============================================================
+
+async function openAssessmentForm(
+  submissionId
+) {
+
+  try {
+
+    const {
+      data: submission,
+      error
+    } =
+      await journeySupabase
+        .from(
+          'journey_assessment_submissions'
+        )
+        .select(`
+          id,
+          checkpoint_id,
+          employment_id,
+          respondent_type,
+          status,
+          started_at,
+          submitted_at,
+
+          journey_checkpoints (
+            id,
+            checkpoint,
+            opens_at,
+            due_at
+          ),
+
+          employments (
+            id,
+
+            people (
+              full_name
+            )
+          )
+        `)
+        .eq(
+          'id',
+          submissionId
+        )
+        .single();
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    const checkpointCode =
+      submission
+        .journey_checkpoints
+        ?.checkpoint;
+
+
+    const {
+      data: questions,
+      error: questionError
+    } =
+      await journeySupabase
+        .from(
+          'journey_assessment_questions'
+        )
+        .select(`
+          id,
+          checkpoint,
+          respondent_type,
+          dimension,
+          question_text,
+          question_type,
+          required,
+          display_order,
+          options
+        `)
+        .eq(
+          'checkpoint',
+          checkpointCode
+        )
+        .eq(
+          'respondent_type',
+          submission.respondent_type
+        )
+        .eq(
+          'active',
+          true
+        )
+        .order(
+          'display_order'
+        );
+
+
+    if (questionError) {
+      throw questionError;
+    }
+
+
+    const {
+      data: answers,
+      error: answersError
+    } =
+      await journeySupabase
+        .from(
+          'journey_assessment_answers'
+        )
+        .select(`
+          id,
+          question_id,
+          numeric_value,
+          text_value,
+          boolean_value,
+          option_value
+        `)
+        .eq(
+          'submission_id',
+          submissionId
+        );
+
+
+    if (answersError) {
+      throw answersError;
+    }
+
+
+    if (
+      !questions?.length
+    ) {
+
+      alert(
+        `Ainda não existem perguntas cadastradas para ${checkpointCode} neste perfil.`
+      );
+
+      return;
+
+    }
+
+
+    renderAssessmentFormModal(
+      submission,
+      questions,
+      answers || []
+    );
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    alert(
+      error.message
+      ||
+      'Não foi possível carregar o formulário.'
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// MODAL DO FORMULÁRIO
+// ============================================================
+
+function renderAssessmentFormModal(
+  submission,
+  questions,
+  answers
+) {
+
+  const employeeName =
+    submission
+      .employments
+      ?.people
+      ?.full_name
+    ||
+    currentProfile.full_name;
+
+
+  const checkpoint =
+    submission
+      .journey_checkpoints
+      ?.checkpoint;
+
+
+  openGenericModal(`
+
+    <div class="assessment-form-modal">
+
+
+      <div class="modal-header">
+
+        <div>
+
+          <span class="assessment-eyebrow">
+            ${
+              submission
+                .respondent_type ===
+                'EMPLOYEE'
+
+                ? 'MINHA AVALIAÇÃO'
+
+                : 'AVALIAÇÃO DA LIDERANÇA'
+            }
+          </span>
+
+          <h2>
+            ${escapeHTML(
+              checkpoint
+            )}
+            ·
+            ${escapeHTML(
+              employeeName
+            )}
+          </h2>
+
+          <p>
+            Prazo:
+            ${formatAssessmentDate(
+              submission
+                .journey_checkpoints
+                ?.due_at
+            )}
+          </p>
+
+        </div>
+
+
+        <button
+          id="closeGenericModalButton"
+          class="modal-close"
+          type="button"
+        >
+          ×
+        </button>
+
+      </div>
+
+
+      <form
+        id="journeyAssessmentForm"
+        class="assessment-form"
+      >
+
+        ${
+          questions
+            .map(
+              (
+                question,
+                index
+              ) => {
+
+                const answer =
+                  answers.find(
+                    item =>
+                      item.question_id ===
+                      question.id
+                  );
+
+
+                return renderAssessmentQuestion(
+                  question,
+                  answer,
+                  index + 1
+                );
+
+              }
+            )
+            .join('')
+        }
+
+
+        <div class="assessment-form-footer">
+
+          <button
+            id="saveAssessmentDraftButton"
+            class="secondary-button"
+            type="button"
+          >
+            Salvar rascunho
+          </button>
+
+
+          <button
+            id="submitAssessmentButton"
+            class="primary-action-button"
+            type="submit"
+          >
+            Enviar avaliação
+          </button>
+
+        </div>
+
+      </form>
+
+    </div>
+
+  `);
+
+
+  document
+    .getElementById(
+      'saveAssessmentDraftButton'
+    )
+    ?.addEventListener(
+      'click',
+      () => {
+
+        saveAssessmentForm(
+          submission.id,
+          questions,
+          false
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      'journeyAssessmentForm'
+    )
+    ?.addEventListener(
+      'submit',
+      event => {
+
+        event.preventDefault();
+
+
+        saveAssessmentForm(
+          submission.id,
+          questions,
+          true
+        );
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// PERGUNTA
+// ============================================================
+
+function renderAssessmentQuestion(
+  question,
+  answer,
+  number
+) {
+
+  return `
+
+    <div
+      class="assessment-question"
+      data-question-id="${question.id}"
+      data-question-type="${question.question_type}"
+      data-required="${question.required}"
+    >
+
+      <div class="assessment-question-heading">
+
+        <span>
+          ${number}
+        </span>
+
+
+        <div>
+
+          <small>
+            ${escapeHTML(
+              formatAssessmentDimension(
+                question.dimension
+              )
+            )}
+          </small>
+
+          <strong>
+            ${escapeHTML(
+              question.question_text
+            )}
+          </strong>
+
+          ${
+            question.required
+
+              ? `
+                <em>
+                  Obrigatória
+                </em>
+              `
+
+              : `
+                <em>
+                  Opcional
+                </em>
+              `
+          }
+
+        </div>
+
+      </div>
+
+
+      ${renderAssessmentInput(
+        question,
+        answer
+      )}
+
+    </div>
+
+  `;
+
+}
+
+
+// ============================================================
+// INPUT
+// ============================================================
+
+function renderAssessmentInput(
+  question,
+  answer
+) {
+
+  switch (
+    question.question_type
+  ) {
+
+
+    case 'SCALE_1_5':
+
+      return renderAssessmentScale(
+        question,
+        answer
+      );
+
+
+    case 'YES_NO':
+
+      return renderAssessmentYesNo(
+        question,
+        answer
+      );
+
+
+    case 'TEXT':
+
+      return `
+
+        <textarea
+          class="assessment-textarea"
+          data-answer-field="text"
+          rows="5"
+          placeholder="Escreva sua resposta..."
+        >${escapeHTML(
+          answer?.text_value || ''
+        )}</textarea>
+
+      `;
+
+
+    case 'SINGLE_CHOICE':
+
+      return renderAssessmentChoice(
+        question,
+        answer
+      );
+
+
+    default:
+
+      return '';
+
+  }
+
+}
+
+
+// ============================================================
+// ESCALA 1-5
+// ============================================================
+
+function renderAssessmentScale(
+  question,
+  answer
+) {
+
+  return `
+
+    <div class="assessment-scale">
+
+      ${
+        [1, 2, 3, 4, 5]
+          .map(
+            number => `
+
+              <label
+                class="assessment-scale-option"
+              >
+
+                <input
+                  type="radio"
+                  name="assessment_${question.id}"
+                  value="${number}"
+                  ${
+                    Number(
+                      answer?.numeric_value
+                    ) === number
+                      ? 'checked'
+                      : ''
+                  }
+                >
+
+                <span>
+                  ${number}
+                </span>
+
+              </label>
+
+            `
+          )
+          .join('')
+      }
+
+    </div>
+
+
+    <div class="assessment-scale-labels">
+
+      <span>
+        1 · Muito abaixo
+      </span>
+
+      <span>
+        5 · Muito acima
+      </span>
+
+    </div>
+
+  `;
+
+}
+
+
+// ============================================================
+// SIM / NÃO
+// ============================================================
+
+function renderAssessmentYesNo(
+  question,
+  answer
+) {
+
+  return `
+
+    <div class="assessment-choice-buttons">
+
+      <label>
+
+        <input
+          type="radio"
+          name="assessment_${question.id}"
+          value="true"
+          ${
+            answer
+              ?.boolean_value ===
+              true
+                ? 'checked'
+                : ''
+          }
+        >
+
+        <span>
+          Sim
+        </span>
+
+      </label>
+
+
+      <label>
+
+        <input
+          type="radio"
+          name="assessment_${question.id}"
+          value="false"
+          ${
+            answer
+              ?.boolean_value ===
+              false
+                ? 'checked'
+                : ''
+          }
+        >
+
+        <span>
+          Não
+        </span>
+
+      </label>
+
+    </div>
+
+  `;
+
+}
+
+
+// ============================================================
+// ESCOLHA ÚNICA
+// ============================================================
+
+function renderAssessmentChoice(
+  question,
+  answer
+) {
+
+  const options =
+    Array.isArray(
+      question.options
+    )
+      ? question.options
+      : [];
+
+
+  return `
+
+    <div class="assessment-single-choice">
+
+      ${
+        options
+          .map(
+            option => `
+
+              <label>
+
+                <input
+                  type="radio"
+                  name="assessment_${question.id}"
+                  value="${escapeHTML(
+                    option
+                  )}"
+                  ${
+                    answer?.option_value ===
+                    option
+                      ? 'checked'
+                      : ''
+                  }
+                >
+
+                <span>
+                  ${escapeHTML(
+                    option
+                  )}
+                </span>
+
+              </label>
+
+            `
+          )
+          .join('')
+      }
+
+    </div>
+
+  `;
+
+}
+
+
+// ============================================================
+// SALVAR FORMULÁRIO
+// ============================================================
+
+async function saveAssessmentForm(
+  submissionId,
+  questions,
+  submitAfterSave
+) {
+
+  const saveButton =
+    document
+      .getElementById(
+        'saveAssessmentDraftButton'
+      );
+
+
+  const submitButton =
+    document
+      .getElementById(
+        'submitAssessmentButton'
+      );
+
+
+  try {
+
+    if (saveButton) {
+      saveButton.disabled = true;
+    }
+
+
+    if (submitButton) {
+      submitButton.disabled = true;
+    }
+
+
+    const responses =
+      collectAssessmentResponses(
+        questions
+      );
+
+
+    if (
+      submitAfterSave
+    ) {
+
+      const missing =
+        responses.filter(
+          response =>
+            response.required
+            &&
+            !response.hasValue
+        );
+
+
+      if (
+        missing.length
+      ) {
+
+        throw new Error(
+          `Existem ${missing.length} pergunta(s) obrigatória(s) sem resposta.`
+        );
+
+      }
+
+    }
+
+
+    for (
+      const response
+      of responses
+    ) {
+
+      if (
+        !response.hasValue
+      ) {
+        continue;
+      }
+
+
+      const {
+        error
+      } =
+        await journeySupabase
+          .rpc(
+            'save_journey_assessment_answer',
+            {
+
+              p_submission_id:
+                submissionId,
+
+              p_question_id:
+                response.questionId,
+
+              p_numeric_value:
+                response.numericValue,
+
+              p_text_value:
+                response.textValue,
+
+              p_boolean_value:
+                response.booleanValue,
+
+              p_option_value:
+                response.optionValue
+
+            }
+          );
+
+
+      if (error) {
+        throw error;
+      }
+
+    }
+
+
+    if (
+      submitAfterSave
+    ) {
+
+      const confirmed =
+        confirm(
+          'Enviar esta avaliação?\n\nDepois do envio ela será considerada concluída.'
+        );
+
+
+      if (!confirmed) {
+
+        if (saveButton) {
+          saveButton.disabled = false;
+        }
+
+
+        if (submitButton) {
+          submitButton.disabled = false;
+        }
+
+
+        return;
+
+      }
+
+
+      const {
+        error
+      } =
+        await journeySupabase
+          .rpc(
+            'submit_journey_assessment',
+            {
+              p_submission_id:
+                submissionId
+            }
+          );
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      closeGenericModal();
+
+
+      alert(
+        'Avaliação enviada com sucesso. 🧡'
+      );
+
+
+      await loadAssessmentsPage();
+
+      return;
+
+    }
+
+
+    alert(
+      'Rascunho salvo.'
+    );
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    alert(
+      error.message
+      ||
+      'Não foi possível salvar a avaliação.'
+    );
+
+  }
+
+  finally {
+
+    if (saveButton) {
+      saveButton.disabled = false;
+    }
+
+
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+
+  }
+
+}
+
+
+// ============================================================
+// COLETAR RESPOSTAS
+// ============================================================
+
+function collectAssessmentResponses(
+  questions
+) {
+
+  return questions.map(
+    question => {
+
+      const container =
+        document.querySelector(
+          `[data-question-id="${question.id}"]`
+        );
+
+
+      let numericValue =
+        null;
+
+
+      let textValue =
+        null;
+
+
+      let booleanValue =
+        null;
+
+
+      let optionValue =
+        null;
+
+
+      let hasValue =
+        false;
+
+
+      switch (
+        question.question_type
+      ) {
+
+
+        case 'SCALE_1_5': {
+
+          const selected =
+            container
+              ?.querySelector(
+                `input[name="assessment_${question.id}"]:checked`
+              );
+
+
+          if (selected) {
+
+            numericValue =
+              Number(
+                selected.value
+              );
+
+
+            hasValue =
+              true;
+
+          }
+
+
+          break;
+
+        }
+
+
+        case 'YES_NO': {
+
+          const selected =
+            container
+              ?.querySelector(
+                `input[name="assessment_${question.id}"]:checked`
+              );
+
+
+          if (selected) {
+
+            booleanValue =
+              selected.value ===
+              'true';
+
+
+            hasValue =
+              true;
+
+          }
+
+
+          break;
+
+        }
+
+
+        case 'TEXT': {
+
+          const textarea =
+            container
+              ?.querySelector(
+                '[data-answer-field="text"]'
+              );
+
+
+          const value =
+            textarea
+              ?.value
+              ?.trim()
+            ||
+            '';
+
+
+          if (value) {
+
+            textValue =
+              value;
+
+
+            hasValue =
+              true;
+
+          }
+
+
+          break;
+
+        }
+
+
+        case 'SINGLE_CHOICE': {
+
+          const selected =
+            container
+              ?.querySelector(
+                `input[name="assessment_${question.id}"]:checked`
+              );
+
+
+          if (selected) {
+
+            optionValue =
+              selected.value;
+
+
+            hasValue =
+              true;
+
+          }
+
+
+          break;
+
+        }
+
+      }
+
+
+      return {
+
+        questionId:
+          question.id,
+
+        required:
+          question.required,
+
+        numericValue,
+
+        textValue,
+
+        booleanValue,
+
+        optionValue,
+
+        hasValue
+
+      };
+
+    }
+  );
+
+}
+
+
+// ============================================================
+// ============================================================
+// VISUALIZAÇÃO DE RESPOSTA
+// ============================================================
+// ============================================================
+
+async function openSubmittedAssessmentViewer(
+  submissionId
+) {
+
+  try {
+
+    const {
+      data: submission,
+      error
+    } =
+      await journeySupabase
+        .from(
+          'journey_assessment_submissions'
+        )
+        .select(`
+          id,
+          respondent_type,
+          submitted_at,
+
+          journey_checkpoints (
+            checkpoint
+          ),
+
+          employments (
+            people (
+              full_name
+            )
+          )
+        `)
+        .eq(
+          'id',
+          submissionId
+        )
+        .single();
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    const {
+      data: answers,
+      error: answersError
+    } =
+      await journeySupabase
+        .from(
+          'journey_assessment_answers'
+        )
+        .select(`
+          id,
+          numeric_value,
+          text_value,
+          boolean_value,
+          option_value,
+
+          journey_assessment_questions (
+            id,
+            dimension,
+            question_text,
+            question_type,
+            display_order
+          )
+        `)
+        .eq(
+          'submission_id',
+          submissionId
+        );
+
+
+    if (answersError) {
+      throw answersError;
+    }
+
+
+    const sorted =
+      (
+        answers ||
+        []
+      )
+        .sort(
+          (
+            a,
+            b
+          ) =>
+
+            (
+              a
+                .journey_assessment_questions
+                ?.display_order
+              ||
+              0
+            )
+
+            -
+
+            (
+              b
+                .journey_assessment_questions
+                ?.display_order
+              ||
+              0
+            )
+
+        );
+
+
+    openGenericModal(`
+
+      <div class="assessment-form-modal">
+
+
+        <div class="modal-header">
+
+          <div>
+
+            <span class="assessment-eyebrow">
+
+              ${
+                submission
+                  .respondent_type ===
+                  'EMPLOYEE'
+
+                  ? 'RESPOSTA DO COLABORADOR'
+
+                  : 'RESPOSTA DA LIDERANÇA'
+              }
+
+            </span>
+
+
+            <h2>
+
+              ${escapeHTML(
+                submission
+                  .journey_checkpoints
+                  ?.checkpoint
+                ||
+                ''
+              )}
+
+              ·
+
+              ${escapeHTML(
+                submission
+                  .employments
+                  ?.people
+                  ?.full_name
+                ||
+                ''
+              )}
+
+            </h2>
+
+
+            <p>
+
+              Respondida em
+
+              ${formatAssessmentDateTime(
+                submission
+                  .submitted_at
+              )}
+
+            </p>
+
+          </div>
+
+
+          <button
+            id="closeGenericModalButton"
+            class="modal-close"
+            type="button"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <div class="assessment-viewer">
+
+          ${
+            sorted.length
+
+              ? sorted
+                  .map(
+                    (
+                      answer,
+                      index
+                    ) => `
+
+                      <div class="assessment-view-answer">
+
+                        <span>
+                          ${index + 1}
+                          ·
+                          ${escapeHTML(
+                            formatAssessmentDimension(
+                              answer
+                                .journey_assessment_questions
+                                ?.dimension
+                            )
+                          )}
+                        </span>
+
+
+                        <strong>
+
+                          ${escapeHTML(
+                            answer
+                              .journey_assessment_questions
+                              ?.question_text
+                            ||
+                            ''
+                          )}
+
+                        </strong>
+
+
+                        <p>
+
+                          ${escapeHTML(
+                            formatAssessmentAnswer(
+                              answer
+                            )
+                          )}
+
+                        </p>
+
+                      </div>
+
+                    `
+                  )
+                  .join('')
+
+              : `
+
+                  <div class="empty-state">
+
+                    Nenhuma resposta encontrada.
+
+                  </div>
+
+                `
+          }
+
+        </div>
+
+      </div>
+
+    `);
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+
+    alert(
+      error.message
+      ||
+      'Não foi possível abrir as respostas.'
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// FORMATAÇÃO DE RESPOSTA
+// ============================================================
+
+function formatAssessmentAnswer(
+  answer
+) {
+
+  if (
+    answer.numeric_value !==
+    null
+    &&
+    answer.numeric_value !==
+    undefined
+  ) {
+
+    return `${answer.numeric_value} / 5`;
+
+  }
+
+
+  if (
+    answer.boolean_value !==
+    null
+    &&
+    answer.boolean_value !==
+    undefined
+  ) {
+
+    return answer.boolean_value
+      ? 'Sim'
+      : 'Não';
+
+  }
+
+
+  if (
+    answer.option_value
+  ) {
+
+    return answer.option_value;
+
+  }
+
+
+  if (
+    answer.text_value
+  ) {
+
+    return answer.text_value;
+
+  }
+
+
+  return '-';
+
+}
+
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function getAssessmentJourney(
+  employment
+) {
+
+  const journeys =
+    employment.journeys ||
+    [];
+
+
+  if (!journeys.length) {
+    return null;
+  }
+
+
+  return (
+
+    journeys.find(
+      journey =>
+        journey.status ===
+        'ACTIVE'
+    )
+
+    ||
+
+    journeys[0]
+
+  );
+
+}
+
+
+// ============================================================
+// DISPONIBILIDADE
+// ============================================================
+
+function getCheckpointAvailability(
+  checkpoint
+) {
+
+  const now =
+    new Date();
+
+
+  const opens =
+    new Date(
+      checkpoint.opens_at
+    );
+
+
+  const due =
+    new Date(
+      checkpoint.due_at
+    );
+
+
+  if (
+    now < opens
+  ) {
+
+    return 'FUTURE';
+
+  }
+
+
+  if (
+    now > due
+  ) {
+
+    return 'OVERDUE';
+
+  }
+
+
+  return 'AVAILABLE';
+
+}
+
+
+// ============================================================
+// STATUS DE UM LADO
+// ============================================================
+
+function getAssessmentSideStatus(
+  checkpoint,
+  submission
+) {
+
+  if (
+    submission?.status ===
+    'SUBMITTED'
+  ) {
+
+    return 'SUBMITTED';
+
+  }
+
+
+  if (
+    submission?.status ===
+    'DRAFT'
+  ) {
+
+    return 'DRAFT';
+
+  }
+
+
+  return getCheckpointAvailability(
+    checkpoint
+  );
+
+}
+
+
+// ============================================================
+// BADGE STATUS
+// ============================================================
+
+function renderAssessmentStatus(
+  status
+) {
+
+  const map = {
+
+    SUBMITTED: {
+      className:
+        'success',
+      label:
+        '✓ Respondida'
+    },
+
+    AVAILABLE: {
+      className:
+        'warning',
+      label:
+        'Disponível'
+    },
+
+    DRAFT: {
+      className:
+        'warning',
+      label:
+        'Rascunho'
+    },
+
+    OVERDUE: {
+      className:
+        'danger',
+      label:
+        '⚠ Em atraso'
+    },
+
+    FUTURE: {
+      className:
+        'muted',
+      label:
+        'Em breve'
+    },
+
+    NO_LEADER: {
+      className:
+        'danger',
+      label:
+        '⚠ Sem líder'
+    }
+
+  };
+
+
+  const item =
+    map[status]
+    ||
+    map.FUTURE;
+
+
+  return `
+
+    <span
+      class="assessment-status ${item.className}"
+    >
+      ${item.label}
+    </span>
+
+  `;
+
+}
+
+
+// ============================================================
+// IDS DOS CHECKPOINTS
+// ============================================================
+
+function collectCheckpointIds(
+  employments
+) {
+
+  const ids = [];
+
+
+  employments.forEach(
+    employment => {
+
+      const journey =
+        getAssessmentJourney(
+          employment
+        );
+
+
+      if (!journey) {
+        return;
+      }
+
+
+      (
+        journey.journey_checkpoints
+        ||
+        []
+      )
+        .forEach(
+          checkpoint => {
+
+            ids.push(
+              checkpoint.id
+            );
+
+          }
+        );
+
+    }
+  );
+
+
+  return [
+    ...new Set(ids)
+  ];
+
+}
+
+
+// ============================================================
+// ORDENAÇÃO D1 -> D90
+// ============================================================
+
+function sortCheckpoints(
+  a,
+  b
+) {
+
+  const order = {
+
+    D1: 1,
+    D7: 7,
+    D15: 15,
+    D30: 30,
+    D45: 45,
+    D90: 90
+
+  };
+
+
+  return (
+
+    (
+      order[
+        a.checkpoint
+      ]
+      ||
+      999
+    )
+
+    -
+
+    (
+      order[
+        b.checkpoint
+      ]
+      ||
+      999
+    )
+
+  );
+
+}
+
+
+// ============================================================
+// OPTIONS CHECKPOINT
+// ============================================================
+
+function renderCheckpointOptions() {
+
+  return [
+
+    'D1',
+    'D7',
+    'D15',
+    'D30',
+    'D45',
+    'D90'
+
+  ]
+    .map(
+      checkpoint => `
+
+        <option
+          value="${checkpoint}"
+        >
+          ${checkpoint}
+        </option>
+
+      `
+    )
+    .join('');
+
+}
+
+
+// ============================================================
+// REGIONAIS
+// ============================================================
+
+function renderAssessmentRegionalOptions() {
+
+  const map =
+    new Map();
+
+
+  assessmentEmployments
+    .forEach(
+      employment => {
+
+        const regional =
+          employment
+            .operations
+            ?.regionals;
+
+
+        if (
+          regional?.id
+        ) {
+
+          map.set(
+            regional.id,
+            regional
+          );
+
+        }
+
+      }
+    );
+
+
+  return [
+    ...map.values()
+  ]
+    .sort(
+      (
+        a,
+        b
+      ) =>
+        a.name.localeCompare(
+          b.name
+        )
+    )
+    .map(
+      regional => `
+
+        <option
+          value="${regional.id}"
+        >
+          ${escapeHTML(
+            regional.name
+          )}
+        </option>
+
+      `
+    )
+    .join('');
+
+}
+
+
+// ============================================================
+// OPERAÇÕES
+// ============================================================
+
+function renderAssessmentOperationOptions() {
+
+  const map =
+    new Map();
+
+
+  assessmentEmployments
+    .forEach(
+      employment => {
+
+        const operation =
+          employment.operations;
+
+
+        if (
+          operation?.id
+        ) {
+
+          map.set(
+            operation.id,
+            operation
+          );
+
+        }
+
+      }
+    );
+
+
+  return [
+    ...map.values()
+  ]
+    .sort(
+      (
+        a,
+        b
+      ) =>
+        a.name.localeCompare(
+          b.name
+        )
+    )
+    .map(
+      operation => `
+
+        <option
+          value="${operation.id}"
+        >
+          ${escapeHTML(
+            operation.name
+          )}
+        </option>
+
+      `
+    )
+    .join('');
+
+}
+
+
+// ============================================================
+// DIMENSÃO
+// ============================================================
+
+function formatAssessmentDimension(
+  dimension
+) {
+
+  const map = {
+
+    ONBOARDING:
+      'Onboarding',
+
+    INTEGRACAO:
+      'Integração',
+
+    ROTINA:
+      'Rotina',
+
+    EXPECTATIVA_REALIDADE:
+      'Expectativa × Realidade',
+
+    APRENDIZADO:
+      'Aprendizado',
+
+    COMPORTAMENTO:
+      'Comportamento',
+
+    PRODUTIVIDADE:
+      'Produtividade',
+
+    LIDERANCA:
+      'Liderança',
+
+    FREQUENCIA:
+      'Frequência',
+
+    GERAL:
+      'Observações'
+
+  };
+
+
+  return (
+    map[dimension]
+    ||
+    dimension
+    ||
+    'Geral'
+  );
+
+}
+
+
+// ============================================================
+// DATAS
+// ============================================================
+
+function formatAssessmentDate(
+  value
+) {
+
+  if (!value) {
+    return '-';
+  }
+
+
+  const date =
+    new Date(value);
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '-';
+  }
+
+
+  return date
+    .toLocaleDateString(
+      'pt-BR'
+    );
+
+}
+
+
+function formatAssessmentDateTime(
+  value
+) {
+
+  if (!value) {
+    return '-';
+  }
+
+
+  const date =
+    new Date(value);
+
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '-';
+  }
+
+
+  return date
+    .toLocaleString(
+      'pt-BR',
+      {
+
+        day:
+          '2-digit',
+
+        month:
+          '2-digit',
+
+        year:
+          'numeric',
+
+        hour:
+          '2-digit',
+
+        minute:
+          '2-digit'
+
+      }
+    );
+
+}
+
+
+// ============================================================
+// ============================================================
+// CSS DO MÓDULO
+// ============================================================
+// ============================================================
+
+function injectAssessmentStyles() {
+
+  if (
+    document.getElementById(
+      'journeyAssessmentStyles'
+    )
+  ) {
+    return;
+  }
+
+
+  const style =
+    document.createElement(
+      'style'
+    );
+
+
+  style.id =
+    'journeyAssessmentStyles';
+
+
+  style.textContent = `
+
+    .assessment-welcome,
+    .assessment-module-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:24px;
+      margin-bottom:22px;
+    }
+
+
+    .assessment-welcome {
+      padding:28px;
+      border-radius:18px;
+      background:
+        linear-gradient(
+          135deg,
+          rgba(238,77,45,.13),
+          rgba(238,77,45,.03)
+        );
+      border:1px solid
+        rgba(238,77,45,.12);
+    }
+
+
+    .assessment-welcome h2,
+    .assessment-module-header h2 {
+      margin:4px 0 8px;
+    }
+
+
+    .assessment-welcome p,
+    .assessment-module-header p {
+      margin:0;
+      opacity:.74;
+      max-width:680px;
+    }
+
+
+    .assessment-eyebrow {
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.11em;
+      color:#EE4D2D;
+    }
+
+
+    .assessment-progress-number {
+      min-width:90px;
+      height:90px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:50%;
+      font-size:22px;
+      font-weight:800;
+      border:8px solid
+        rgba(238,77,45,.18);
+      color:#EE4D2D;
+    }
+
+
+    .assessment-metrics {
+      display:grid;
+      grid-template-columns:
+        repeat(3, minmax(0,1fr));
+      gap:14px;
+      margin-bottom:20px;
+    }
+
+
+    .assessment-metric {
+      padding:18px 20px;
+      border-radius:15px;
+      border:1px solid
+        var(--border-color, rgba(0,0,0,.08));
+      background:
+        var(--card-bg, #fff);
+    }
+
+
+    .assessment-metric span {
+      display:block;
+      font-size:12px;
+      opacity:.7;
+      margin-bottom:8px;
+    }
+
+
+    .assessment-metric strong {
+      font-size:28px;
+    }
+
+
+    .assessment-metric.attention strong {
+      color:#d14343;
+    }
+
+
+    .assessment-leader-card {
+      display:flex;
+      align-items:center;
+      gap:16px;
+      padding:18px 20px;
+      border-radius:16px;
+      border:1px solid
+        rgba(238,77,45,.16);
+      background:
+        var(--card-bg, #fff);
+      margin-bottom:20px;
+    }
+
+
+    .assessment-leader-card.warning {
+      border-style:dashed;
+    }
+
+
+    .assessment-leader-avatar {
+      width:48px;
+      height:48px;
+      min-width:48px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:800;
+      background:
+        rgba(238,77,45,.12);
+      color:#EE4D2D;
+    }
+
+
+    .assessment-leader-avatar.small {
+      width:38px;
+      height:38px;
+      min-width:38px;
+      font-size:12px;
+    }
+
+
+    .assessment-leader-info {
+      flex:1;
+      min-width:0;
+    }
+
+
+    .assessment-leader-info span,
+    .assessment-leader-info small {
+      display:block;
+      opacity:.68;
+    }
+
+
+    .assessment-leader-info strong {
+      display:block;
+      margin:3px 0;
+    }
+
+
+    .assessment-leader-actions {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+
+
+    .assessment-outline-button,
+    .assessment-link-button,
+    .assessment-status-button {
+      border:1px solid
+        rgba(238,77,45,.25);
+      background:transparent;
+      color:#EE4D2D;
+      border-radius:9px;
+      padding:9px 12px;
+      cursor:pointer;
+      font-weight:700;
+    }
+
+
+    .assessment-link-button {
+      border:0;
+    }
+
+
+    .assessment-status-button.success {
+      color:#17884a;
+      border-color:
+        rgba(23,136,74,.25);
+    }
+
+
+    .assessment-timeline {
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+
+    .assessment-checkpoint-card {
+      display:grid;
+      grid-template-columns:
+        62px minmax(0,1fr) auto auto;
+      align-items:center;
+      gap:14px;
+      padding:16px;
+      border-radius:14px;
+      border:1px solid
+        var(--border-color, rgba(0,0,0,.08));
+    }
+
+
+    .assessment-checkpoint-card.available {
+      border-color:
+        rgba(238,77,45,.30);
+    }
+
+
+    .assessment-checkpoint-card.attention {
+      border-color:
+        rgba(209,67,67,.28);
+    }
+
+
+    .assessment-checkpoint-code {
+      width:52px;
+      height:52px;
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:800;
+      background:
+        rgba(238,77,45,.10);
+      color:#EE4D2D;
+    }
+
+
+    .assessment-checkpoint-info strong,
+    .assessment-checkpoint-info span {
+      display:block;
+    }
+
+
+    .assessment-checkpoint-info span {
+      margin-top:4px;
+      font-size:12px;
+      opacity:.68;
+    }
+
+
+    .assessment-status {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:6px 9px;
+      border-radius:999px;
+      font-size:10px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+
+
+    .assessment-status.success {
+      background:
+        rgba(23,136,74,.10);
+      color:#17884a;
+    }
+
+
+    .assessment-status.warning {
+      background:
+        rgba(238,77,45,.10);
+      color:#EE4D2D;
+    }
+
+
+    .assessment-status.danger {
+      background:
+        rgba(209,67,67,.10);
+      color:#d14343;
+    }
+
+
+    .assessment-status.muted {
+      background:
+        rgba(127,127,127,.10);
+      opacity:.68;
+    }
+
+
+    .assessment-tab-group {
+      display:flex;
+      gap:6px;
+      padding:5px;
+      border-radius:12px;
+      background:
+        rgba(127,127,127,.08);
+    }
+
+
+    .assessment-tab {
+      border:0;
+      background:transparent;
+      padding:10px 16px;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:700;
+    }
+
+
+    .assessment-tab.active {
+      background:#EE4D2D;
+      color:#fff;
+    }
+
+
+    .assessment-modal-body,
+    .assessment-viewer {
+      padding:22px;
+    }
+
+
+    .assessment-leader-selection {
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+
+    .assessment-leader-option {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      width:100%;
+      padding:13px;
+      text-align:left;
+      cursor:pointer;
+      border-radius:12px;
+      border:1px solid
+        var(--border-color, rgba(0,0,0,.08));
+      background:
+        var(--card-bg, #fff);
+    }
+
+
+    .assessment-leader-option > span:nth-child(2) {
+      flex:1;
+    }
+
+
+    .assessment-leader-option strong,
+    .assessment-leader-option small {
+      display:block;
+    }
+
+
+    .assessment-leader-option small {
+      opacity:.65;
+      margin-top:3px;
+    }
+
+
+    .assessment-leader-option b {
+      font-size:11px;
+      color:#EE4D2D;
+    }
+
+
+    .assessment-form-modal {
+      max-height:88vh;
+      overflow:auto;
+    }
+
+
+    .assessment-form {
+      padding:22px;
+    }
+
+
+    .assessment-question {
+      padding:20px 0;
+      border-bottom:1px solid
+        var(--border-color, rgba(0,0,0,.08));
+    }
+
+
+    .assessment-question:first-child {
+      padding-top:0;
+    }
+
+
+    .assessment-question-heading {
+      display:flex;
+      align-items:flex-start;
+      gap:12px;
+      margin-bottom:16px;
+    }
+
+
+    .assessment-question-heading > span {
+      width:30px;
+      height:30px;
+      min-width:30px;
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:
+        rgba(238,77,45,.10);
+      color:#EE4D2D;
+      font-weight:800;
+    }
+
+
+    .assessment-question-heading small,
+    .assessment-question-heading strong,
+    .assessment-question-heading em {
+      display:block;
+    }
+
+
+    .assessment-question-heading small {
+      color:#EE4D2D;
+      font-size:10px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+    }
+
+
+    .assessment-question-heading strong {
+      margin:4px 0;
+      font-size:14px;
+      line-height:1.45;
+    }
+
+
+    .assessment-question-heading em {
+      opacity:.55;
+      font-size:10px;
+      font-style:normal;
+    }
+
+
+    .assessment-scale {
+      display:grid;
+      grid-template-columns:
+        repeat(5,1fr);
+      gap:8px;
+    }
+
+
+    .assessment-scale-option input,
+    .assessment-choice-buttons input,
+    .assessment-single-choice input {
+      position:absolute;
+      opacity:0;
+      pointer-events:none;
+    }
+
+
+    .assessment-scale-option span {
+      height:46px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:1px solid
+        var(--border-color, rgba(0,0,0,.10));
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:800;
+    }
+
+
+    .assessment-scale-option input:checked + span {
+      background:#EE4D2D;
+      border-color:#EE4D2D;
+      color:#fff;
+    }
+
+
+    .assessment-scale-labels {
+      display:flex;
+      justify-content:space-between;
+      margin-top:7px;
+      font-size:10px;
+      opacity:.60;
+    }
+
+
+    .assessment-choice-buttons {
+      display:flex;
+      gap:10px;
+    }
+
+
+    .assessment-choice-buttons span,
+    .assessment-single-choice span {
+      display:block;
+      padding:10px 16px;
+      border-radius:9px;
+      border:1px solid
+        var(--border-color, rgba(0,0,0,.10));
+      cursor:pointer;
+    }
+
+
+    .assessment-choice-buttons input:checked + span,
+    .assessment-single-choice input:checked + span {
+      background:#EE4D2D;
+      color:#fff;
+      border-color:#EE4D2D;
+    }
+
+
+    .assessment-single-choice {
+      display:flex;
+      flex-direction:column;
+      gap:7px;
+    }
+
+
+    .assessment-textarea {
+      width:100%;
+      box-sizing:border-box;
+      resize:vertical;
+      border-radius:10px;
+      padding:12px;
+      background:
+        var(--input-bg, transparent);
+      color:inherit;
+      border:1px solid
+        var(--border-color, rgba(0,0,0,.12));
+      font:inherit;
+    }
+
+
+    .assessment-form-footer {
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      padding-top:22px;
+    }
+
+
+    .assessment-view-answer {
+      padding:16px 0;
+      border-bottom:1px solid
+        var(--border-color, rgba(0,0,0,.08));
+    }
+
+
+    .assessment-view-answer span {
+      display:block;
+      color:#EE4D2D;
+      font-size:10px;
+      font-weight:800;
+      text-transform:uppercase;
+    }
+
+
+    .assessment-view-answer strong {
+      display:block;
+      margin:5px 0 9px;
+      font-size:13px;
+    }
+
+
+    .assessment-view-answer p {
+      margin:0;
+      font-size:14px;
+      line-height:1.5;
+    }
+
+
+    .assessment-empty-large {
+      min-height:320px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:30px;
+    }
+
+
+    .assessment-empty-icon {
+      width:62px;
+      height:62px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:50%;
+      margin-bottom:14px;
+      color:#EE4D2D;
+      background:
+        rgba(238,77,45,.10);
+      font-size:24px;
+    }
+
+
+    @media (
+      max-width: 800px
+    ) {
+
+      .assessment-metrics {
+        grid-template-columns:1fr;
+      }
+
+
+      .assessment-welcome,
+      .assessment-module-header,
+      .assessment-leader-card {
+        align-items:flex-start;
+        flex-direction:column;
+      }
+
+
+      .assessment-checkpoint-card {
+        grid-template-columns:
+          52px minmax(0,1fr);
+      }
+
+
+      .assessment-checkpoint-card
+      > .assessment-status,
+      .assessment-checkpoint-card
+      > button {
+        grid-column:2;
+        justify-self:start;
+      }
+
+
+      .assessment-progress-number {
+        display:none;
+      }
+
+    }
+
+  `;
+
+
+  document.head
+    .appendChild(
+      style
+    );
+
+}
