@@ -435,10 +435,10 @@
           </label>
 
           <label>
-            <span>Turno / período</span>
+            <span>Turno</span>
             <select id="employeesPeriodFilter">
               <option value="ALL">Todos</option>
-              <option value="NO_PERIOD" ${MODULE.state.period === 'NO_PERIOD' ? 'selected' : ''}>Sem período</option>
+              <option value="NO_PERIOD" ${MODULE.state.period === 'NO_PERIOD' ? 'selected' : ''}>Sem turno</option>
               ${MODULE.periods.map(period => optionHTML(period.id, period.name, MODULE.state.period)).join('')}
             </select>
           </label>
@@ -593,7 +593,7 @@
               <th>Colaborador</th>
               <th>Operação</th>
               <th>Turno</th>
-              <th>Horário / escala</th>
+              <th>Escala</th>
               <th>Líder</th>
               <th>Jornada</th>
               <th>Etapa</th>
@@ -779,7 +779,7 @@
 
         <div class="employee-modal-statusbar">
           ${employmentStatusBadge(row.status)}
-          ${row.work_schedule ? '<span class="employee-pill success">✓ Horário informado</span>' : '<span class="employee-pill danger">⚠ Sem horário</span>'}
+          ${row.work_schedule ? '<span class="employee-pill success">✓ Escala informada</span>' : '<span class="employee-pill danger">⚠ Sem escala</span>'}
           ${leader ? '<span class="employee-pill success">✓ Liderança definida</span>' : '<span class="employee-pill danger">⚠ Sem liderança</span>'}
           ${operation?.use_period_filter
             ? (period ? '<span class="employee-pill success">✓ Turno definido</span>' : '<span class="employee-pill danger">⚠ Sem turno</span>')
@@ -805,7 +805,7 @@
 
           <section class="employee-form-section">
             <div class="employee-section-title">
-              <div><small>VÍNCULO</small><h3>Operação, turno e horário</h3></div>
+              <div><small>VÍNCULO</small><h3>Operação, turno e escala</h3></div>
             </div>
 
             <div class="employee-form-grid">
@@ -830,7 +830,7 @@
               )}
 
               ${formSelect(
-                'Turno / período',
+                'Turno',
                 'employeeEditPeriod',
                 row.period_id || '',
                 periodsForOperation(row.operation_id).map(item => ({ value: item.id, label: item.name })),
@@ -839,14 +839,14 @@
                 operation?.use_period_filter ? 'Selecione o turno' : 'Não se aplica / não definido'
               )}
 
-              ${formInput('Horário / escala', 'employeeEditSchedule', row.work_schedule || '', editable, 'text', true, 'Ex.: 06:00 às 14:20 - 6x1')}
+              ${formInput('Escala', 'employeeEditSchedule', row.work_schedule || '', editable, 'text', true, 'Ex.: 06:00 às 15:00 ou 00:00 às 09:00')}
               ${formInput('Data de admissão', 'employeeEditAdmissionDate', toDateInput(row.admission_date), editable, 'date', true)}
             </div>
 
             <div id="employeePeriodRuleNote" class="employee-rule-note ${operation?.use_period_filter ? 'attention' : ''}">
               ${operation?.use_period_filter
-                ? 'Esta operação usa turno/período como filtro de elegibilidade da liderança.'
-                : 'Nesta operação o turno/período não é obrigatório para definir a liderança.'}
+                ? 'Esta operação usa o TURNO como filtro de elegibilidade da liderança.'
+                : 'Nesta operação o TURNO não é obrigatório para definir a liderança.'}
             </div>
           </section>
 
@@ -1066,8 +1066,8 @@
     if (note) {
       note.classList.toggle('attention', !!operation?.use_period_filter);
       note.textContent = operation?.use_period_filter
-        ? 'Esta operação usa turno/período como filtro de elegibilidade da liderança.'
-        : 'Nesta operação o turno/período não é obrigatório para definir a liderança.';
+        ? 'Esta operação usa o TURNO como filtro de elegibilidade da liderança.'
+        : 'Nesta operação o TURNO não é obrigatório para definir a liderança.';
     }
   }
 
@@ -1125,7 +1125,7 @@
     }
 
     if (!payloadEmployment.work_schedule) {
-      alert('Informe o horário/escala do colaborador.');
+      alert('Informe a escala do colaborador.');
       setButtonBusy(button, false, 'Salvar alterações');
       return;
     }
