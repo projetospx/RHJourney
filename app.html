@@ -1,6 +1,9 @@
 <!DOCTYPE html>
+
 <html lang="pt-BR">
+
 <head>
+
   <meta charset="UTF-8">
 
   <meta
@@ -14,9 +17,12 @@
     rel="stylesheet"
     href="css/styles.css"
   >
+
 </head>
 
+
 <body class="app-body">
+
 
   <!-- ======================================================
        SIDEBAR
@@ -27,13 +33,16 @@
     class="sidebar"
   >
 
+
     <div class="sidebar-brand">
 
       <div class="sidebar-logo">
         S
       </div>
 
+
       <div class="sidebar-brand-text">
+
         <strong>
           Shopee Journey
         </strong>
@@ -41,6 +50,7 @@
         <span>
           People Journey
         </span>
+
       </div>
 
     </div>
@@ -48,48 +58,69 @@
 
     <nav class="sidebar-menu">
 
+
       <button
         class="menu-item active"
         data-page="dashboard"
+        type="button"
       >
+
         <span>⌂</span>
+
         Visão Geral
+
       </button>
 
 
       <button
         class="menu-item admin-only"
         data-page="new-employees"
+        type="button"
       >
+
         <span>＋</span>
+
         Novos Colaboradores
+
       </button>
 
 
       <button
         class="menu-item"
         data-page="journeys"
+        type="button"
       >
+
         <span>↗</span>
+
         Jornadas
+
       </button>
 
 
       <button
         class="menu-item"
         data-page="assessments"
+        type="button"
       >
+
         <span>✓</span>
+
         Avaliações
+
       </button>
 
 
       <button
         class="menu-item"
         data-page="pending"
+        type="button"
       >
+
         <span>!</span>
+
         Pendências
+
 
         <span
           id="pendingBadge"
@@ -97,15 +128,20 @@
         >
           0
         </span>
+
       </button>
 
 
       <button
-  class="menu-item management-view"
-  data-page="indicators"
->
+        class="menu-item management-view"
+        data-page="indicators"
+        type="button"
+      >
+
         <span>▥</span>
+
         Indicadores
+
       </button>
 
 
@@ -115,9 +151,13 @@
       <button
         class="menu-item admin-only"
         data-page="settings"
+        type="button"
       >
+
         <span>⚙</span>
+
         Configurações
+
       </button>
 
     </nav>
@@ -133,6 +173,7 @@
         >
           U
         </div>
+
 
         <div class="profile-info">
 
@@ -159,9 +200,9 @@
 
   <main class="app-main">
 
-    <!-- HEADER -->
 
     <header class="app-header">
+
 
       <div class="header-left">
 
@@ -172,6 +213,7 @@
         >
           ☰
         </button>
+
 
         <div>
 
@@ -232,13 +274,35 @@
 
 
   <!-- ======================================================
-       SUPABASE
+       BIBLIOTECAS
   ======================================================= -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"
+  ></script>
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+  ></script>
+
+
+  <!-- ======================================================
+       SHOPEE JOURNEY
+  ======================================================= -->
 
   <script src="js/config.js"></script>
+
   <script src="js/app.js"></script>
 
+  <!--
+    Módulo independente de Avaliações.
+    É carregado depois do app principal porque assume
+    somente a rota "assessments".
+  -->
+
+  <script src="js/assessments.js"></script>
+
+
 </body>
+
 </html>
