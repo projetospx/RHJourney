@@ -267,7 +267,8 @@
 
           bpos (
             id,
-            name
+            name,
+            active
           ),
 
           operations (
@@ -284,7 +285,8 @@
           period:operation_periods!employments_period_id_fkey (
             id,
             name,
-            operation_id
+            operation_id,
+            active
           ),
 
           leader:profiles!employments_leader_id_fkey (
@@ -326,12 +328,12 @@
 
       journeySupabase
         .from('operation_periods')
-        .select('id, operation_id, name')
+        .select('id, operation_id, name, active')
         .order('name'),
 
       journeySupabase
         .from('bpos')
-        .select('id, name')
+        .select('id, name, active')
         .order('name'),
 
       journeySupabase
@@ -824,7 +826,10 @@
                 'BPO',
                 'employeeEditBpo',
                 row.bpo_id || '',
-                MODULE.bpos.map(item => ({ value: item.id, label: item.name })),
+                bposForEditor(row.bpo_id).map(item => ({
+                  value: item.id,
+                  label: item.active === false ? `${item.name} (inativa)` : item.name
+                })),
                 editable,
                 true
               )}
@@ -833,7 +838,10 @@
                 'Turno',
                 'employeeEditPeriod',
                 row.period_id || '',
-                periodsForOperation(row.operation_id).map(item => ({ value: item.id, label: item.name })),
+                periodsForOperation(row.operation_id, row.period_id).map(item => ({
+                  value: item.id,
+                  label: item.active === false ? `${item.name} (inativo)` : item.name
+                })),
                 editable,
                 false,
                 operation?.use_period_filter ? 'Selecione o turno' : 'Não se aplica / não definido'
@@ -934,8 +942,17 @@
     `;
   }
 
-  function periodsForOperation(operationId) {
-    return MODULE.periods.filter(period => period.operation_id === operationId);
+  function periodsForOperation(operationId, currentPeriodId = '') {
+    return MODULE.periods.filter(period =>
+      period.operation_id === operationId &&
+      (period.active !== false || String(period.id) === String(currentPeriodId || ''))
+    );
+  }
+
+  function bposForEditor(currentBpoId = '') {
+    return MODULE.bpos.filter(bpo =>
+      bpo.active !== false || String(bpo.id) === String(currentBpoId || '')
+    );
   }
 
   function renderJourneySummary(row) {
