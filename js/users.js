@@ -12,10 +12,16 @@
     users: [],
     operations: [],
     periods: [],
+    loadPromise: null,
+    lastLoadedAt: null,
     search: '',
     role: 'ALL',
     status: 'ALL'
   };
+
+  const USERS_TIMEOUT_MS = 12000;
+  const USERS_CACHE_TTL_MS = 2 * 60 * 1000;
+  const USERS_CACHE_PREFIX = 'journey-users-cache:';
 
   document.addEventListener('DOMContentLoaded', initializeUsersModule);
 
@@ -27,6 +33,10 @@
       updateMenuVisibility();
       setTimeout(updateMenuVisibility, 300);
       setTimeout(updateMenuVisibility, 1000);
+
+      if (canManageUsers()) {
+        prefetchUsersData();
+      }
     } catch (error) {
       console.warn('Shopee Journey / Usuários: identidade ainda não disponível.', error);
     }
@@ -92,7 +102,37 @@
 
       const host = getHost();
       if (!host) return;
-      host.innerHTML = '<div class="page-loading">Carregando usuários...</div>';
+
+      const cached = readUsersCache();
+
+      if (cached) {
+        applyUsersData(cached);
+        renderUsersPage();
+        setUsersNotice('Atualizando dados em segundo plano...');
+
+        loadUsersData(true)
+          .then(() => {
+            if (isUsersPageActive()) {
+              renderUsersPage();
+              setUsersNotice('Dados atualizados.');
+            }
+          })
+          .catch(error => {
+            console.warn('Atualização de usuários em segundo plano falhou:', error);
+            if (isUsersPageActive()) {
+              setUsersNotice('Exibindo a última carga disponível. Clique em Atualizar para tentar novamente.', true);
+            }
+          });
+
+        return;
+      }
+
+      host.innerHTML = `
+        <div class="page-loading">
+          Carregando usuários...
+          <small style="display:block;margin-top:8px">A primeira abertura pode levar alguns segundos.</small>
+        </div>
+      `;
 
       await loadUsersData();
       renderUsersPage();
@@ -104,8 +144,11 @@
           <div class="users-error">
             <h2>Não foi possível carregar os usuários.</h2>
             <p>${escapeHTML(error.message || 'Erro desconhecido.')}</p>
+            <button id="usersRetryButton" class="users-primary-button" type="button">Tentar novamente</button>
           </div>
         `;
+
+        document.getElementById('usersRetryButton')?.addEventListener('click', openUsersPage);
       }
     }
   }
@@ -115,17 +158,121 @@
   }
 
   async function invokeUsersFunction(body) {
-    const { data, error } = await journeySupabase.functions.invoke('manage-corporate-users', { body });
+    const invocation = journeySupabase.functions.invoke('manage-corporate-users', { body });
+
+    // Timeout somente na leitura. Nunca interrompemos criação/edição no meio,
+    // pois a operação poderia concluir no servidor e ser repetida pelo usuário.
+    const result = body?.action === 'list'
+      ? await withTimeout(
+          invocation,
+          USERS_TIMEOUT_MS,
+          'A gestão de usuários demorou mais de 12 segundos para responder. Tente novamente.'
+        )
+      : await invocation;
+
+    const { data, error } = result;
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
     return data;
   }
 
-  async function loadUsersData() {
-    const data = await invokeUsersFunction({ action: 'list' });
+  async function loadUsersData(force = false) {
+    if (STATE.loadPromise) return STATE.loadPromise;
+
+    if (!force) {
+      const cached = readUsersCache();
+      if (cached) {
+        applyUsersData(cached);
+        return cached;
+      }
+    }
+
+    const request = (async () => {
+      const data = await invokeUsersFunction({ action: 'list' });
+      applyUsersData(data);
+      writeUsersCache(data);
+      return data;
+    })();
+
+    STATE.loadPromise = request;
+
+    try {
+      return await request;
+    } finally {
+      if (STATE.loadPromise === request) {
+        STATE.loadPromise = null;
+      }
+    }
+  }
+
+  function prefetchUsersData() {
+    const cached = readUsersCache();
+    if (cached) applyUsersData(cached);
+
+    loadUsersData(true).catch(error => {
+      console.warn('Pré-carregamento de Usuários indisponível:', error);
+    });
+  }
+
+  function applyUsersData(data) {
     STATE.users = data?.users || [];
     STATE.operations = data?.operations || [];
     STATE.periods = data?.periods || [];
+    STATE.lastLoadedAt = Number(data?.cached_at || Date.now());
+  }
+
+  function usersCacheKey() {
+    return `${USERS_CACHE_PREFIX}${STATE.profile?.id || 'anonymous'}`;
+  }
+
+  function readUsersCache() {
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(usersCacheKey()) || 'null');
+      if (!parsed?.cached_at) return null;
+      if (Date.now() - Number(parsed.cached_at) > USERS_CACHE_TTL_MS) {
+        sessionStorage.removeItem(usersCacheKey());
+        return null;
+      }
+      return parsed;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writeUsersCache(data) {
+    try {
+      sessionStorage.setItem(usersCacheKey(), JSON.stringify({
+        users: data?.users || [],
+        operations: data?.operations || [],
+        periods: data?.periods || [],
+        cached_at: Date.now()
+      }));
+    } catch (_) {
+      // Cache é apenas uma otimização; nunca deve bloquear a tela.
+    }
+  }
+
+  function clearUsersCache() {
+    try {
+      sessionStorage.removeItem(usersCacheKey());
+    } catch (_) {
+      // Sem ação necessária.
+    }
+  }
+
+  function withTimeout(promiseLike, timeoutMs, message) {
+    let timer;
+
+    const timeout = new Promise((_, reject) => {
+      timer = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    });
+
+    return Promise.race([Promise.resolve(promiseLike), timeout])
+      .finally(() => window.clearTimeout(timer));
+  }
+
+  function isUsersPageActive() {
+    return document.querySelector('[data-page="users"]')?.classList.contains('active') === true;
   }
 
   function renderUsersPage() {
@@ -149,11 +296,15 @@
           <div>
             <h2>Usuários Corporativos</h2>
             <p>Abra um usuário para alterar dados, redefinir senha ou vincular operações.</p>
+            <small id="usersLoadNotice" class="users-load-notice" role="status" aria-live="polite">
+              ${STATE.lastLoadedAt ? `Atualizado às ${escapeHTML(formatTime(STATE.lastLoadedAt))}` : ''}
+            </small>
           </div>
 
-          <button id="usersNewButton" class="users-primary-button" type="button">
-            + Novo acesso
-          </button>
+          <div class="users-head-actions">
+            <button id="usersReloadButton" class="users-secondary-button" type="button">Atualizar</button>
+            <button id="usersNewButton" class="users-primary-button" type="button">+ Novo acesso</button>
+          </div>
         </div>
 
         <div class="users-toolbar">
@@ -187,6 +338,7 @@
     `;
 
     document.getElementById('usersNewButton')?.addEventListener('click', () => openUserModal(null));
+    document.getElementById('usersReloadButton')?.addEventListener('click', refreshUsersPage);
 
     document.getElementById('usersSearch')?.addEventListener('input', event => {
       STATE.search = event.target.value;
@@ -204,6 +356,35 @@
     });
 
     renderUsersTable();
+  }
+
+  async function refreshUsersPage() {
+    const button = document.getElementById('usersReloadButton');
+    setBusy(button, true, 'Atualizando...');
+    clearUsersCache();
+
+    try {
+      await loadUsersData(true);
+      renderUsersPage();
+      setUsersNotice('Dados atualizados.');
+    } catch (error) {
+      console.error(error);
+      setUsersNotice(error.message || 'Não foi possível atualizar os usuários.', true);
+      setBusy(button, false, 'Atualizar');
+    }
+  }
+
+  function setUsersNotice(message, error = false) {
+    const node = document.getElementById('usersLoadNotice');
+    if (!node) return;
+    node.textContent = message || '';
+    node.classList.toggle('error', error);
+  }
+
+  function formatTime(value) {
+    const date = new Date(Number(value));
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   }
 
   function metric(label, value, description) {
@@ -517,14 +698,16 @@
 
       if (result?.temporary_password) {
         showTemporaryPassword(result.temporary_password, email);
-        await loadUsersData();
+        clearUsersCache();
+        await loadUsersData(true);
         renderUsersPage();
         return;
       }
 
       alert('Usuário atualizado com sucesso.');
       closeUserModal();
-      await loadUsersData();
+      clearUsersCache();
+      await loadUsersData(true);
       renderUsersPage();
     } catch (error) {
       console.error(error);
@@ -544,7 +727,8 @@
     try {
       const result = await invokeUsersFunction({ action: 'reset-password', user_id: user.id });
       showTemporaryPassword(result.temporary_password, result.email || user.corporate_email);
-      await loadUsersData();
+      clearUsersCache();
+      await loadUsersData(true);
     } catch (error) {
       console.error(error);
       alert(error.message || 'Não foi possível redefinir a senha.');
@@ -641,13 +825,14 @@
     .users-metric small,.users-metric span{display:block;color:#6b7280}.users-metric strong{display:block;font-size:28px;margin:5px 0}
     .users-panel{background:#fff;border:1px solid #e6e7eb;border-radius:14px;padding:20px}
     .users-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}.users-panel-head h2{margin:0 0 4px}.users-panel-head p{margin:0;color:#6b7280}
+    .users-head-actions{display:flex;gap:8px;flex-wrap:wrap}.users-load-notice{display:block;min-height:16px;margin-top:6px;color:#169b50;font-size:10px;font-weight:700}.users-load-notice.error{color:#dc2626}
     .users-primary-button,.users-secondary-button{border-radius:9px;padding:9px 14px;font-weight:700;cursor:pointer}.users-primary-button{border:1px solid #EE4D2D;background:#EE4D2D;color:#fff}.users-secondary-button{border:1px solid #e1e4e8;background:#fff;color:#222}.users-secondary-button:disabled,.users-primary-button:disabled{opacity:.55;cursor:not-allowed}
     .users-toolbar{display:grid;grid-template-columns:minmax(240px,2fr) minmax(170px,1fr) minmax(170px,1fr);gap:12px;margin-bottom:16px}.users-toolbar label>span,.users-field>span{display:block;font-size:11px;font-weight:700;margin-bottom:6px;color:#6b7280}.users-toolbar input,.users-toolbar select,.users-field input,.users-field select{width:100%;box-sizing:border-box;padding:10px;border:1px solid #dfe2e7;border-radius:9px;background:#fff;color:#111}
     .users-table-wrap{overflow:auto}.users-table{width:100%;border-collapse:collapse}.users-table th{text-align:left;font-size:10px;letter-spacing:.04em;color:#6b7280;padding:11px;border-bottom:1px solid #e7e9ed}.users-table td{padding:12px 11px;border-bottom:1px solid #eceef1;vertical-align:middle}.users-empty{text-align:center;padding:35px!important;color:#6b7280}
     .users-person-cell{display:flex;align-items:center;gap:10px}.users-avatar{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(238,77,45,.12);color:#EE4D2D;font-weight:800}.users-person-cell strong,.users-person-cell small{display:block}.users-person-cell small{color:#6b7280;margin-top:3px}
     .users-role-badge,.users-status,.users-operation-chip{display:inline-flex;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:800}.users-role-badge{background:#f3f4f6;color:#4b5563}.users-role-badge.leader,.users-operation-chip{background:rgba(238,77,45,.09);color:#EE4D2D}.users-status.active{background:rgba(22,155,80,.1);color:#169b50}.users-status.inactive{background:rgba(107,114,128,.1);color:#6b7280}.users-operation-chip{margin:2px}.users-warning-text{color:#dc4b3e;font-size:11px}.users-muted{color:#8a9099;font-size:11px}
     .users-modal-overlay{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:20px}.users-modal{width:min(920px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb}.users-modal-header{display:flex;justify-content:space-between;gap:20px;padding:22px;border-bottom:1px solid #eceef1}.users-modal-header small{color:#EE4D2D;font-weight:800;letter-spacing:.08em}.users-modal-header h2{margin:5px 0}.users-modal-header p{margin:0;color:#6b7280}.users-modal-close{border:0;background:transparent;font-size:26px;cursor:pointer;color:inherit}.users-form{padding:22px}.users-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.users-responsibility-section{margin-top:22px}.users-section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin-bottom:10px}.users-section-head small{color:#EE4D2D;font-weight:800}.users-section-head h3{margin:3px 0}.users-section-head>span{font-size:11px;color:#6b7280}.users-operations-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.users-operation-box{border:1px solid #e5e7eb;border-radius:11px;padding:12px;background:#fafafa}.users-operation-main{display:flex;gap:10px;align-items:flex-start}.users-operation-main span strong,.users-operation-main span small{display:block}.users-operation-main span small{color:#6b7280;margin-top:3px}.users-period-list{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 0 26px}.users-period-list label{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #e2e5ea;border-radius:8px;font-size:11px}.users-note{margin-top:10px;padding:10px;border:1px solid #e5e7eb;border-radius:9px;background:#fafafa;font-size:11px;color:#6b7280}.users-temp-password{margin-top:18px;padding:14px;border:1px solid rgba(238,77,45,.25);border-radius:11px;background:rgba(238,77,45,.05)}.users-temp-password small,.users-temp-password strong,.users-temp-password span{display:block}.users-temp-password small{color:#EE4D2D;font-weight:800}.users-temp-password strong{font-size:20px;margin:5px 0;letter-spacing:.04em}.users-temp-password p{font-size:11px;color:#6b7280}.users-modal-footer{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #eceef1;margin-top:22px;padding-top:18px}.users-footer-actions{display:flex;gap:8px}.users-error{padding:30px;border:1px solid rgba(220,38,38,.2);border-radius:14px}
-    @media(max-width:900px){.users-metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.users-toolbar,.users-form-grid,.users-operations-list{grid-template-columns:1fr}}@media(max-width:560px){.users-metrics-grid{grid-template-columns:1fr}.users-panel-head,.users-modal-footer,.users-section-head{flex-direction:column;align-items:stretch}.users-footer-actions{flex-direction:column}}
+    @media(max-width:900px){.users-metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.users-toolbar,.users-form-grid,.users-operations-list{grid-template-columns:1fr}}@media(max-width:560px){.users-metrics-grid{grid-template-columns:1fr}.users-panel-head,.users-modal-footer,.users-section-head{flex-direction:column;align-items:stretch}.users-footer-actions,.users-head-actions{flex-direction:column}}
   `;
   document.head.appendChild(style);
 
