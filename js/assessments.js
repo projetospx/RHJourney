@@ -4,19 +4,45 @@
   let employmentsCache = [];
   let submissionsCache = [];
 
-  const asArray = (value) =>
+  let listState = {
+    search: '',
+    operation: 'ALL',
+    checkpoint: 'ALL',
+    status: 'ALL',
+    page: 1,
+    pageSize: 20,
+    expanded: new Set()
+  };
+
+
+  // ============================================================
+  // HELPERS BÁSICOS
+  // ============================================================
+
+  const asArray = value =>
     !value
       ? []
       : Array.isArray(value)
         ? value
         : [value];
 
-  const asObject = (value) =>
+
+  const asObject = value =>
     !value
       ? null
       : Array.isArray(value)
         ? value[0] || null
         : value;
+
+
+  const CHECKPOINT_ORDER = {
+    D1: 1,
+    D7: 7,
+    D15: 15,
+    D30: 30,
+    D45: 45,
+    D90: 90
+  };
 
 
   // ============================================================
@@ -29,58 +55,30 @@
 
     showPageLoading();
 
-
     try {
 
-      if (
-        currentProfile.role ===
-        'EMPLOYEE'
-      ) {
-
+      if (currentProfile.role === 'EMPLOYEE') {
         return await loadEmployee();
-
       }
 
-
-      if (
-        currentProfile.role ===
-        'LEADER'
-      ) {
-
+      if (currentProfile.role === 'LEADER') {
         return await loadLeader();
-
       }
-
 
       return await loadManagement();
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
       console.error(
         'Avaliações:',
         error
       );
 
-
       pageContent.innerHTML = `
-
         <div class="system-error">
-
-          <h2>
-            Não foi possível carregar as Avaliações
-          </h2>
-
-          <p>
-            ${escapeHTML(
-              error.message ||
-              'Erro desconhecido.'
-            )}
-          </p>
-
+          <h2>Não foi possível carregar as Avaliações</h2>
+          <p>${escapeHTML(error.message || 'Erro desconhecido.')}</p>
         </div>
-
       `;
 
     }
@@ -94,10 +92,7 @@
 
   async function loadEmployee() {
 
-    const {
-      data,
-      error
-    } =
+    const { data, error } =
       await journeySupabase
         .from('employments')
         .select(`
@@ -136,36 +131,23 @@
         `)
         .order(
           'admission_date',
-          {
-            ascending: false
-          }
+          { ascending: false }
         );
 
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
 
     const employment =
-      (
-        data ||
-        []
-      )[0];
+      (data || [])[0];
 
 
     if (!employment) {
 
       pageContent.innerHTML = `
-
         <div class="assessment-empty">
-
-          <h2>
-            Nenhuma Jornada encontrada
-          </h2>
-
+          <h2>Nenhuma Jornada encontrada</h2>
         </div>
-
       `;
 
       return;
@@ -174,40 +156,24 @@
 
 
     const journey =
-      getJourney(
-        employment
-      );
+      getJourney(employment);
 
 
     if (!journey) {
 
       pageContent.innerHTML = `
-
-        ${renderLeaderCard(
-          employment
-        )}
-
+        ${renderLeaderCard(employment)}
 
         <div class="assessment-empty">
-
-          <h2>
-            Jornada ainda não iniciada
-          </h2>
-
+          <h2>Jornada ainda não iniciada</h2>
           <p>
             Assim que a Jornada for iniciada,
             suas avaliações aparecerão aqui.
           </p>
-
         </div>
-
       `;
 
-
-      bindLeaderCard(
-        employment
-      );
-
+      bindLeaderCard(employment);
 
       return;
 
@@ -216,62 +182,17 @@
 
     const checkpoints =
       asArray(
-        journey
-          .journey_checkpoints
+        journey.journey_checkpoints
       )
         .slice()
-        .sort(
-          checkpointSort
-        );
+        .sort(checkpointSort);
 
 
-    const checkpointIds =
-      checkpoints.map(
-        checkpoint =>
-          checkpoint.id
+    const submissions =
+      await fetchSubmissions(
+        checkpoints.map(cp => cp.id),
+        'EMPLOYEE'
       );
-
-
-    let submissions = [];
-
-
-    if (
-      checkpointIds.length
-    ) {
-
-      const result =
-        await journeySupabase
-          .from(
-            'journey_assessment_submissions'
-          )
-          .select(`
-            id,
-            checkpoint_id,
-            status,
-            submitted_at
-          `)
-          .in(
-            'checkpoint_id',
-            checkpointIds
-          )
-          .eq(
-            'respondent_type',
-            'EMPLOYEE'
-          );
-
-
-      if (
-        result.error
-      ) {
-        throw result.error;
-      }
-
-
-      submissions =
-        result.data ||
-        [];
-
-    }
 
 
     renderEmployee(
@@ -283,10 +204,6 @@
   }
 
 
-  // ============================================================
-  // RENDER COLABORADOR
-  // ============================================================
-
   function renderEmployee(
     employment,
     checkpoints,
@@ -296,10 +213,8 @@
     const completed =
       submissions.filter(
         submission =>
-          submission.status ===
-          'SUBMITTED'
-      )
-        .length;
+          submission.status === 'SUBMITTED'
+      ).length;
 
 
     pageContent.innerHTML = `
@@ -307,22 +222,14 @@
       <div class="assessment-hero">
 
         <div>
-
-          <span>
-            MINHA JORNADA
-          </span>
-
-          <h2>
-            Suas Avaliações 🧡
-          </h2>
+          <span>MINHA JORNADA</span>
+          <h2>Suas Avaliações 🧡</h2>
 
           <p>
             Compartilhe como está sendo sua experiência
             ao longo dos primeiros 90 dias.
           </p>
-
         </div>
-
 
         <strong>
           ${completed}/${checkpoints.length}
@@ -331,9 +238,7 @@
       </div>
 
 
-      ${renderLeaderCard(
-        employment
-      )}
+      ${renderLeaderCard(employment)}
 
 
       <section class="dashboard-panel">
@@ -341,16 +246,12 @@
         <div class="panel-header">
 
           <div>
-
-            <h3>
-              Checkpoints
-            </h3>
+            <h3>Checkpoints</h3>
 
             <p>
               Cada avaliação será liberada
               conforme sua Jornada avança.
             </p>
-
           </div>
 
         </div>
@@ -359,36 +260,23 @@
         <div class="assessment-checkpoints">
 
           ${
-            checkpoints.length
+            checkpoints
+              .map(checkpoint => {
 
-              ? checkpoints
-                  .map(
-                    checkpoint => {
+                const submission =
+                  submissions.find(
+                    item =>
+                      item.checkpoint_id ===
+                      checkpoint.id
+                  );
 
-                      const submission =
-                        submissions.find(
-                          item =>
-                            item.checkpoint_id ===
-                            checkpoint.id
-                        );
+                return renderCheckpoint(
+                  checkpoint,
+                  submission
+                );
 
-
-                      return renderCheckpoint(
-                        checkpoint,
-                        submission
-                      );
-
-                    }
-                  )
-                  .join('')
-
-              : `
-
-                  <div class="assessment-empty">
-                    Nenhum checkpoint encontrado.
-                  </div>
-
-                `
+              })
+              .join('')
           }
 
         </div>
@@ -398,285 +286,24 @@
     `;
 
 
-    bindLeaderCard(
-      employment
-    );
+    bindLeaderCard(employment);
 
-
-    document
-      .querySelectorAll(
-        '[data-answer-checkpoint]'
-      )
-      .forEach(
-        button => {
-
-          button.addEventListener(
-            'click',
-            () => {
-
-              openEmployeeAssessment(
-                button.dataset
-                  .answerCheckpoint
-              );
-
-            }
-          );
-
-        }
-      );
-
-
-    document
-      .querySelectorAll(
-        '[data-view-submission]'
-      )
-      .forEach(
-        button => {
-
-          button.addEventListener(
-            'click',
-            () => {
-
-              viewSubmission(
-                button.dataset
-                  .viewSubmission
-              );
-
-            }
-          );
-
-        }
-      );
+    bindAssessmentButtons();
 
   }
 
 
   // ============================================================
-  // CHECKPOINT
+  // LIDERANÇA ATUAL DO COLABORADOR
   // ============================================================
 
-  function renderCheckpoint(
-    checkpoint,
-    submission
-  ) {
-
-    const availability =
-      availabilityStatus(
-        checkpoint
-      );
-
-
-    if (
-      submission?.status ===
-      'SUBMITTED'
-    ) {
-
-      return `
-
-        <div class="assessment-checkpoint">
-
-          <b class="checkpoint-code">
-            ${escapeHTML(
-              checkpoint.checkpoint
-            )}
-          </b>
-
-
-          <div>
-
-            <strong>
-              Avaliação respondida
-            </strong>
-
-            <small>
-              ${formatDate(
-                submission.submitted_at
-              )}
-            </small>
-
-          </div>
-
-
-          <span class="assessment-pill success">
-            ✓ Respondida
-          </span>
-
-
-          <button
-            class="assessment-outline"
-            type="button"
-            data-view-submission="${submission.id}"
-          >
-            Ver respostas
-          </button>
-
-        </div>
-
-      `;
-
-    }
-
-
-    if (
-      availability ===
-      'FUTURE'
-    ) {
-
-      return `
-
-        <div class="assessment-checkpoint">
-
-          <b class="checkpoint-code">
-            ${escapeHTML(
-              checkpoint.checkpoint
-            )}
-          </b>
-
-
-          <div>
-
-            <strong>
-              Em breve
-            </strong>
-
-            <small>
-              Libera em
-              ${formatDate(
-                checkpoint.opens_at
-              )}
-            </small>
-
-          </div>
-
-
-          <span class="assessment-pill muted">
-            🔒 Bloqueada
-          </span>
-
-        </div>
-
-      `;
-
-    }
-
-
-    return `
-
-      <div class="assessment-checkpoint">
-
-        <b class="checkpoint-code">
-          ${escapeHTML(
-            checkpoint.checkpoint
-          )}
-        </b>
-
-
-        <div>
-
-          <strong>
-
-            ${
-              submission?.status ===
-              'DRAFT'
-
-                ? 'Continuar avaliação'
-
-                : 'Avaliação disponível'
-            }
-
-          </strong>
-
-
-          <small>
-
-            ${
-              availability ===
-              'OVERDUE'
-
-                ? 'Prazo original: '
-
-                : 'Prazo: '
-            }
-
-            ${formatDate(
-              checkpoint.due_at
-            )}
-
-          </small>
-
-        </div>
-
-
-        <span
-          class="assessment-pill ${
-            availability ===
-            'OVERDUE'
-
-              ? 'danger'
-
-              : 'warning'
-          }"
-        >
-
-          ${
-            availability ===
-            'OVERDUE'
-
-              ? '⚠ Em atraso'
-
-              : submission?.status ===
-                'DRAFT'
-
-                ? 'Rascunho'
-
-                : 'Disponível'
-          }
-
-        </span>
-
-
-        <button
-          class="primary-action-button"
-          type="button"
-          data-answer-checkpoint="${checkpoint.id}"
-        >
-
-          ${
-            submission?.status ===
-            'DRAFT'
-
-              ? 'Continuar'
-
-              : 'Responder'
-          }
-
-        </button>
-
-      </div>
-
-    `;
-
-  }
-
-
-  // ============================================================
-  // CARD DE LIDERANÇA
-  // ============================================================
-
-  function renderLeaderCard(
-    employment
-  ) {
+  function renderLeaderCard(employment) {
 
     const leader =
-      asObject(
-        employment.leader
-      );
-
+      asObject(employment.leader);
 
     const operation =
-      asObject(
-        employment.operations
-      );
+      asObject(employment.operations);
 
 
     if (leader) {
@@ -686,35 +313,14 @@
         <div class="assessment-leader">
 
           <div class="leader-avatar">
-
-            ${getInitials(
-              leader.full_name
-            )}
-
+            ${getInitials(leader.full_name)}
           </div>
-
 
           <div>
-
-            <small>
-              Seu líder atual
-            </small>
-
-            <strong>
-              ${escapeHTML(
-                leader.full_name
-              )}
-            </strong>
-
-            <span>
-              ${escapeHTML(
-                operation?.name ||
-                ''
-              )}
-            </span>
-
+            <small>Seu líder atual</small>
+            <strong>${escapeHTML(leader.full_name)}</strong>
+            <span>${escapeHTML(operation?.name || '')}</span>
           </div>
-
 
           <button
             id="changeEmployeeLeader"
@@ -739,23 +345,14 @@
           ?
         </div>
 
-
         <div>
-
-          <small>
-            Liderança não identificada
-          </small>
-
-          <strong>
-            Quem é seu líder?
-          </strong>
+          <small>Liderança não identificada</small>
+          <strong>Quem é seu líder?</strong>
 
           <span>
             Isso não impede suas avaliações.
           </span>
-
         </div>
-
 
         <button
           id="chooseEmployeeLeader"
@@ -772,60 +369,29 @@
   }
 
 
-  // ============================================================
-  // EVENTOS DO CARD
-  // ============================================================
-
-  function bindLeaderCard(
-    employment
-  ) {
+  function bindLeaderCard(employment) {
 
     document
-      .getElementById(
-        'chooseEmployeeLeader'
-      )
+      .getElementById('chooseEmployeeLeader')
       ?.addEventListener(
         'click',
-        () => {
-
-          chooseLeader(
-            employment
-          );
-
-        }
+        () => chooseLeader(employment)
       );
 
 
     document
-      .getElementById(
-        'changeEmployeeLeader'
-      )
+      .getElementById('changeEmployeeLeader')
       ?.addEventListener(
         'click',
-        () => {
-
-          chooseLeader(
-            employment
-          );
-
-        }
+        () => chooseLeader(employment)
       );
 
   }
 
 
-  // ============================================================
-  // ESCOLHER LÍDER
-  // ============================================================
+  async function chooseLeader(employment) {
 
-  async function chooseLeader(
-    employment
-  ) {
-
-    const {
-      data,
-      error
-    } =
+    const { data, error } =
       await journeySupabase
         .rpc(
           'get_eligible_leaders_for_employment',
@@ -837,19 +403,13 @@
 
 
     if (error) {
-
-      alert(
-        error.message
-      );
-
+      alert(error.message);
       return;
-
     }
 
 
     const leaders =
-      data ||
-      [];
+      data || [];
 
 
     if (!leaders.length) {
@@ -868,17 +428,9 @@
       <div class="modal-header">
 
         <div>
-
-          <h2>
-            Quem é seu líder?
-          </h2>
-
-          <p>
-            Selecione sua liderança atual.
-          </p>
-
+          <h2>Quem é seu líder?</h2>
+          <p>Selecione sua liderança atual.</p>
         </div>
-
 
         <button
           id="closeGenericModalButton"
@@ -902,32 +454,21 @@
                   class="leader-option"
                   type="button"
                   data-leader-id="${leader.leader_id}"
-                  data-leader-name="${escapeHTML(
-                    leader.full_name
-                  )}"
+                  data-leader-name="${escapeHTML(leader.full_name)}"
                 >
 
                   <span class="leader-avatar">
-
-                    ${getInitials(
-                      leader.full_name
-                    )}
-
+                    ${getInitials(leader.full_name)}
                   </span>
 
-
                   <span>
-
                     <strong>
-                      ${escapeHTML(
-                        leader.full_name
-                      )}
+                      ${escapeHTML(leader.full_name)}
                     </strong>
 
                     <small>
                       Selecionar
                     </small>
-
                   </span>
 
                 </button>
@@ -943,34 +484,22 @@
 
 
     document
-      .querySelectorAll(
-        '.leader-option'
-      )
-      .forEach(
-        button => {
+      .querySelectorAll('.leader-option')
+      .forEach(button => {
 
-          button.addEventListener(
-            'click',
-            () => {
+        button.addEventListener(
+          'click',
+          () => setLeader(
+            employment,
+            button.dataset.leaderId,
+            button.dataset.leaderName
+          )
+        );
 
-              setLeader(
-                employment,
-                button.dataset.leaderId,
-                button.dataset.leaderName
-              );
-
-            }
-          );
-
-        }
-      );
+      });
 
   }
 
-
-  // ============================================================
-  // SALVAR LÍDER
-  // ============================================================
 
   async function setLeader(
     employment,
@@ -987,14 +516,11 @@
     }
 
 
-    const {
-      error
-    } =
+    const { error } =
       await journeySupabase
         .rpc(
           'set_employment_leader',
           {
-
             p_employment_id:
               employment.id,
 
@@ -1006,28 +532,19 @@
 
             p_reason:
               employment.leader_id
-
                 ? 'Liderança alterada pelo colaborador.'
-
                 : 'Liderança indicada pelo colaborador.'
-
           }
         );
 
 
     if (error) {
-
-      alert(
-        error.message
-      );
-
+      alert(error.message);
       return;
-
     }
 
 
     closeGenericModal();
-
 
     await loadEmployee();
 
@@ -1035,67 +552,28 @@
 
 
   // ============================================================
-  // ABRIR AVALIAÇÃO DO COLABORADOR
-  // ============================================================
-
-  async function openEmployeeAssessment(
-    checkpointId
-  ) {
-
-    const {
-      data: submissionId,
-      error
-    } =
-      await journeySupabase
-        .rpc(
-          'get_or_create_employee_assessment',
-          {
-            p_checkpoint_id:
-              checkpointId
-          }
-        );
-
-
-    if (error) {
-
-      alert(
-        error.message
-      );
-
-      return;
-
-    }
-
-
-    await openForm(
-      submissionId
-    );
-
-  }
-
-
-  // ============================================================
   // LÍDER
+  // 1 LINHA POR COLABORADOR
   // ============================================================
 
   async function loadLeader() {
 
-    const {
-      data,
-      error
-    } =
+    const { data, error } =
       await journeySupabase
         .from('employments')
         .select(`
           id,
           leader_id,
           admission_date,
+          status,
 
           people (
-            full_name
+            full_name,
+            cpf
           ),
 
           operations (
+            id,
             name
           ),
 
@@ -1115,6 +593,13 @@
           'leader_id',
           currentProfile.id
         )
+        .in(
+          'status',
+          [
+            'IN_JOURNEY',
+            'COMPLETED'
+          ]
+        )
         .order(
           'admission_date',
           {
@@ -1123,14 +608,11 @@
         );
 
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
 
     employmentsCache =
-      data ||
-      [];
+      data || [];
 
 
     const checkpointIds =
@@ -1139,134 +621,110 @@
       );
 
 
-    submissionsCache = [];
+    submissionsCache =
+      await fetchSubmissions(
+        checkpointIds,
+        'LEADER'
+      );
 
 
-    if (
-      checkpointIds.length
-    ) {
+    listState.page = 1;
 
-      const result =
-        await journeySupabase
-          .from(
-            'journey_assessment_submissions'
-          )
-          .select(`
-            id,
-            checkpoint_id,
-            status,
-            submitted_at
-          `)
-          .in(
-            'checkpoint_id',
-            checkpointIds
-          )
-          .eq(
-            'respondent_type',
-            'LEADER'
-          );
-
-
-      if (
-        result.error
-      ) {
-        throw result.error;
-      }
-
-
-      submissionsCache =
-        result.data ||
-        [];
-
-    }
-
-
-    renderLeader();
+    renderLeaderList();
 
   }
 
 
-  // ============================================================
-  // RENDER LÍDER
-  // ============================================================
+  function renderLeaderList() {
 
-  function renderLeader() {
-
-    const items = [];
+    const prepared =
+      employmentsCache
+        .map(buildLeaderEmployeeItem);
 
 
-    employmentsCache
-      .forEach(
-        employment => {
-
-          const journey =
-            getJourney(
-              employment
-            );
-
-
-          if (!journey) {
-            return;
-          }
-
-
-          asArray(
-            journey
-              .journey_checkpoints
-          )
-            .forEach(
-              checkpoint => {
-
-                const submission =
-                  submissionsCache
-                    .find(
-                      item =>
-                        item.checkpoint_id ===
-                        checkpoint.id
-                    );
-
-
-                let status =
-                  availabilityStatus(
-                    checkpoint
-                  );
-
-
-                if (
-                  submission?.status ===
-                  'SUBMITTED'
-                ) {
-
-                  status =
-                    'SUBMITTED';
-
-                }
-
-                else if (
-                  submission?.status ===
-                  'DRAFT'
-                ) {
-
-                  status =
-                    'DRAFT';
-
-                }
-
-
-                items.push({
-
-                  employment,
-                  checkpoint,
-                  submission,
-                  status
-
-                });
-
-              }
-            );
-
-        }
+    const filtered =
+      filterEmployeeItems(
+        prepared
       );
+
+
+    filtered.sort(
+      compareUrgency
+    );
+
+
+    const total =
+      filtered.length;
+
+
+    const totalPages =
+      Math.max(
+        1,
+        Math.ceil(
+          total /
+          listState.pageSize
+        )
+      );
+
+
+    if (
+      listState.page >
+      totalPages
+    ) {
+      listState.page =
+        totalPages;
+    }
+
+
+    const start =
+      (
+        listState.page - 1
+      )
+      *
+      listState.pageSize;
+
+
+    const pageItems =
+      filtered.slice(
+        start,
+        start + listState.pageSize
+      );
+
+
+    const pending =
+      prepared.filter(
+        item =>
+          [
+            'OVERDUE',
+            'AVAILABLE',
+            'DRAFT'
+          ].includes(
+            item.primary.status
+          )
+      ).length;
+
+
+    const overdue =
+      prepared.filter(
+        item =>
+          item.primary.status ===
+          'OVERDUE'
+      ).length;
+
+
+    const operations =
+      [
+        ...new Set(
+          employmentsCache
+            .map(
+              employment =>
+                asObject(
+                  employment.operations
+                )?.name
+            )
+            .filter(Boolean)
+        )
+      ].sort();
 
 
     pageContent.innerHTML = `
@@ -1274,19 +732,32 @@
       <div class="assessment-hero">
 
         <div>
-
-          <span>
-            AVALIAÇÕES DA EQUIPE
-          </span>
-
-          <h2>
-            Acompanhamento da Liderança
-          </h2>
+          <span>AVALIAÇÕES DA EQUIPE</span>
+          <h2>Acompanhamento da Liderança</h2>
 
           <p>
-            Avalie os colaboradores sob sua responsabilidade.
+            Uma visão compacta da sua equipe.
           </p>
+        </div>
 
+      </div>
+
+
+      <div class="assessment-summary-grid">
+
+        <div>
+          <small>Equipe</small>
+          <strong>${prepared.length}</strong>
+        </div>
+
+        <div>
+          <small>Pendentes</small>
+          <strong>${pending}</strong>
+        </div>
+
+        <div>
+          <small>Em atraso</small>
+          <strong>${overdue}</strong>
         </div>
 
       </div>
@@ -1294,38 +765,173 @@
 
       <section class="dashboard-panel">
 
+        <div class="assessment-toolbar">
+
+          <input
+            id="assessmentSearch"
+            type="search"
+            placeholder="Buscar nome ou CPF..."
+            value="${escapeHTML(listState.search)}"
+          >
+
+
+          <select id="assessmentOperation">
+
+            <option value="ALL">
+              Todas as operações
+            </option>
+
+            ${
+              operations.map(
+                operation => `
+
+                  <option
+                    value="${escapeHTML(operation)}"
+                    ${
+                      listState.operation ===
+                      operation
+                        ? 'selected'
+                        : ''
+                    }
+                  >
+                    ${escapeHTML(operation)}
+                  </option>
+
+                `
+              ).join('')
+            }
+
+          </select>
+
+
+          <select id="assessmentCheckpoint">
+
+            <option value="ALL">
+              Todos os checkpoints
+            </option>
+
+            ${
+              [
+                'D1',
+                'D7',
+                'D15',
+                'D30',
+                'D45',
+                'D90'
+              ]
+                .map(
+                  cp => `
+
+                    <option
+                      value="${cp}"
+                      ${
+                        listState.checkpoint ===
+                        cp
+                          ? 'selected'
+                          : ''
+                      }
+                    >
+                      ${cp}
+                    </option>
+
+                  `
+                )
+                .join('')
+            }
+
+          </select>
+
+
+          <select id="assessmentStatus">
+
+            <option value="ALL">
+              Todos os status
+            </option>
+
+            <option
+              value="OVERDUE"
+              ${
+                listState.status === 'OVERDUE'
+                  ? 'selected'
+                  : ''
+              }
+            >
+              Em atraso
+            </option>
+
+            <option
+              value="AVAILABLE"
+              ${
+                listState.status === 'AVAILABLE'
+                  ? 'selected'
+                  : ''
+              }
+            >
+              Disponível
+            </option>
+
+            <option
+              value="DRAFT"
+              ${
+                listState.status === 'DRAFT'
+                  ? 'selected'
+                  : ''
+              }
+            >
+              Rascunho
+            </option>
+
+            <option
+              value="SUBMITTED"
+              ${
+                listState.status === 'SUBMITTED'
+                  ? 'selected'
+                  : ''
+              }
+            >
+              Respondida
+            </option>
+
+            <option
+              value="FUTURE"
+              ${
+                listState.status === 'FUTURE'
+                  ? 'selected'
+                  : ''
+              }
+            >
+              Em breve
+            </option>
+
+          </select>
+
+        </div>
+
+
+        <div class="assessment-list-info">
+
+          ${
+            total
+              ? `Exibindo ${start + 1}–${Math.min(start + listState.pageSize, total)} de ${total}`
+              : 'Nenhum colaborador encontrado'
+          }
+
+        </div>
+
+
         <div class="table-wrapper">
 
-          <table class="journey-table">
+          <table class="journey-table assessment-people-table">
 
             <thead>
 
               <tr>
-
-                <th>
-                  Colaborador
-                </th>
-
-                <th>
-                  Operação
-                </th>
-
-                <th>
-                  Etapa
-                </th>
-
-                <th>
-                  Prazo
-                </th>
-
-                <th>
-                  Status
-                </th>
-
-                <th>
-                  Ação
-                </th>
-
+                <th>Colaborador</th>
+                <th>Operação</th>
+                <th>Etapa atual</th>
+                <th>Prazo</th>
+                <th>Status</th>
+                <th>Ação</th>
               </tr>
 
             </thead>
@@ -1334,136 +940,20 @@
             <tbody>
 
               ${
-                items.length
+                pageItems.length
 
-                  ? items
+                  ? pageItems
                       .map(
-                        item => {
-
-                          const employee =
-                            asObject(
-                              item
-                                .employment
-                                .people
-                            );
-
-
-                          const operation =
-                            asObject(
-                              item
-                                .employment
-                                .operations
-                            );
-
-
-                          return `
-
-                            <tr>
-
-                              <td>
-                                ${escapeHTML(
-                                  employee?.full_name ||
-                                  ''
-                                )}
-                              </td>
-
-
-                              <td>
-                                ${escapeHTML(
-                                  operation?.name ||
-                                  '-'
-                                )}
-                              </td>
-
-
-                              <td>
-                                ${escapeHTML(
-                                  item
-                                    .checkpoint
-                                    .checkpoint
-                                )}
-                              </td>
-
-
-                              <td>
-                                ${formatDate(
-                                  item
-                                    .checkpoint
-                                    .due_at
-                                )}
-                              </td>
-
-
-                              <td>
-                                ${statusBadge(
-                                  item.status
-                                )}
-                              </td>
-
-
-                              <td>
-
-                                ${
-                                  item.status ===
-                                  'FUTURE'
-
-                                    ? '—'
-
-                                    : item.status ===
-                                      'SUBMITTED'
-
-                                      ? `
-
-                                          <button
-                                            class="assessment-outline"
-                                            type="button"
-                                            data-view-submission="${item.submission.id}"
-                                          >
-                                            Ver
-                                          </button>
-
-                                        `
-
-                                      : `
-
-                                          <button
-                                            class="primary-action-button"
-                                            type="button"
-                                            data-leader-checkpoint="${item.checkpoint.id}"
-                                          >
-
-                                            ${
-                                              item.status ===
-                                              'DRAFT'
-
-                                                ? 'Continuar'
-
-                                                : 'Responder'
-                                            }
-
-                                          </button>
-
-                                        `
-                                }
-
-                              </td>
-
-                            </tr>
-
-                          `;
-
-                        }
+                        renderLeaderEmployeeRow
                       )
                       .join('')
 
                   : `
 
                       <tr>
-
                         <td colspan="6">
-                          Nenhuma avaliação encontrada.
+                          Nenhum colaborador encontrado.
                         </td>
-
                       </tr>
 
                     `
@@ -1475,9 +965,522 @@
 
         </div>
 
+
+        ${renderPagination(totalPages)}
+
       </section>
 
     `;
+
+
+    bindListFilters();
+
+    bindLeaderListButtons();
+
+    bindPagination();
+
+  }
+
+
+  function buildLeaderEmployeeItem(
+    employment
+  ) {
+
+    const person =
+      asObject(
+        employment.people
+      );
+
+
+    const operation =
+      asObject(
+        employment.operations
+      );
+
+
+    const journey =
+      getJourney(
+        employment
+      );
+
+
+    const checkpoints =
+      asArray(
+        journey?.journey_checkpoints
+      )
+        .slice()
+        .sort(checkpointSort);
+
+
+    const states =
+      checkpoints.map(
+        checkpoint => {
+
+          const submission =
+            submissionsCache.find(
+              item =>
+                item.checkpoint_id ===
+                checkpoint.id
+            );
+
+
+          return {
+            checkpoint,
+            submission,
+            status:
+              effectiveStatus(
+                checkpoint,
+                submission
+              )
+          };
+
+        }
+      );
+
+
+    let primary;
+
+
+    if (
+      listState.checkpoint !==
+      'ALL'
+    ) {
+
+      primary =
+        states.find(
+          item =>
+            item.checkpoint.checkpoint ===
+            listState.checkpoint
+        );
+
+    }
+
+
+    if (!primary) {
+
+      primary =
+        states.find(
+          item =>
+            item.status === 'OVERDUE'
+        )
+        ||
+        states.find(
+          item =>
+            item.status === 'DRAFT'
+        )
+        ||
+        states.find(
+          item =>
+            item.status === 'AVAILABLE'
+        )
+        ||
+        states.find(
+          item =>
+            item.status === 'FUTURE'
+        )
+        ||
+        states[
+          states.length - 1
+        ];
+
+    }
+
+
+    return {
+      employment,
+      person,
+      operation,
+      states,
+      primary:
+        primary || {
+          checkpoint: {
+            checkpoint: '-',
+            due_at: null
+          },
+          submission: null,
+          status: 'FUTURE'
+        }
+    };
+
+  }
+
+
+  function filterEmployeeItems(
+    items
+  ) {
+
+    const search =
+      listState.search
+        .trim()
+        .toLowerCase();
+
+
+    return items.filter(
+      item => {
+
+        const text =
+          `${item.person?.full_name || ''} ${item.person?.cpf || ''}`
+            .toLowerCase();
+
+
+        if (
+          search &&
+          !text.includes(search)
+        ) {
+          return false;
+        }
+
+
+        if (
+          listState.operation !==
+          'ALL'
+          &&
+          item.operation?.name !==
+          listState.operation
+        ) {
+          return false;
+        }
+
+
+        if (
+          listState.checkpoint !==
+          'ALL'
+          &&
+          !item.states.some(
+            state =>
+              state.checkpoint.checkpoint ===
+              listState.checkpoint
+          )
+        ) {
+          return false;
+        }
+
+
+        if (
+          listState.status !==
+          'ALL'
+          &&
+          item.primary.status !==
+          listState.status
+        ) {
+          return false;
+        }
+
+
+        return true;
+
+      }
+    );
+
+  }
+
+
+  function renderLeaderEmployeeRow(
+    item
+  ) {
+
+    const employment =
+      item.employment;
+
+
+    const primary =
+      item.primary;
+
+
+    const expanded =
+      listState.expanded.has(
+        employment.id
+      );
+
+
+    return `
+
+      <tr>
+
+        <td>
+
+          <strong>
+            ${escapeHTML(item.person?.full_name || '-')}
+          </strong>
+
+          <br>
+
+          <small>
+            ${escapeHTML(formatCPF(item.person?.cpf || ''))}
+          </small>
+
+        </td>
+
+
+        <td>
+          ${escapeHTML(item.operation?.name || '-')}
+        </td>
+
+
+        <td>
+          <strong>
+            ${escapeHTML(primary.checkpoint.checkpoint)}
+          </strong>
+        </td>
+
+
+        <td>
+          ${formatDate(primary.checkpoint.due_at)}
+        </td>
+
+
+        <td>
+          ${statusBadge(primary.status)}
+        </td>
+
+
+        <td>
+
+          <div class="assessment-row-actions">
+
+            ${primaryAction(primary)}
+
+            <button
+              class="assessment-outline"
+              type="button"
+              data-toggle-employment="${employment.id}"
+            >
+              ${
+                expanded
+                  ? 'Ocultar'
+                  : 'Ver jornada'
+              }
+            </button>
+
+          </div>
+
+        </td>
+
+      </tr>
+
+
+      ${
+        expanded
+          ? `
+
+              <tr class="assessment-expanded-row">
+
+                <td colspan="6">
+
+                  <div class="expanded-checkpoints">
+
+                    ${
+                      item.states
+                        .map(
+                          state =>
+                            renderExpandedCheckpoint(
+                              state
+                            )
+                        )
+                        .join('')
+                    }
+
+                  </div>
+
+                </td>
+
+              </tr>
+
+            `
+          : ''
+      }
+
+    `;
+
+  }
+
+
+  function primaryAction(
+    state
+  ) {
+
+    if (
+      state.status ===
+      'SUBMITTED'
+    ) {
+
+      return `
+
+        <button
+          class="assessment-outline"
+          type="button"
+          data-view-submission="${state.submission.id}"
+        >
+          Ver
+        </button>
+
+      `;
+
+    }
+
+
+    if (
+      state.status ===
+      'FUTURE'
+    ) {
+      return '';
+    }
+
+
+    return `
+
+      <button
+        class="primary-action-button"
+        type="button"
+        data-leader-checkpoint="${state.checkpoint.id}"
+      >
+        ${
+          state.status ===
+          'DRAFT'
+            ? 'Continuar'
+            : 'Responder'
+        }
+      </button>
+
+    `;
+
+  }
+
+
+  function renderExpandedCheckpoint(
+    state
+  ) {
+
+    return `
+
+      <div class="expanded-checkpoint">
+
+        <div>
+
+          <b>
+            ${escapeHTML(
+              state.checkpoint.checkpoint
+            )}
+          </b>
+
+          <small>
+            ${formatDate(
+              state.checkpoint.due_at
+            )}
+          </small>
+
+        </div>
+
+        ${statusBadge(state.status)}
+
+        ${primaryAction(state)}
+
+      </div>
+
+    `;
+
+  }
+
+
+  function bindListFilters() {
+
+    document
+      .getElementById('assessmentSearch')
+      ?.addEventListener(
+        'input',
+        event => {
+
+          listState.search =
+            event.target.value;
+
+          listState.page = 1;
+
+          renderLeaderList();
+
+          setTimeout(
+            () =>
+              document
+                .getElementById('assessmentSearch')
+                ?.focus(),
+            0
+          );
+
+        }
+      );
+
+
+    [
+      [
+        'assessmentOperation',
+        'operation'
+      ],
+      [
+        'assessmentCheckpoint',
+        'checkpoint'
+      ],
+      [
+        'assessmentStatus',
+        'status'
+      ]
+    ]
+      .forEach(
+        ([id, key]) => {
+
+          document
+            .getElementById(id)
+            ?.addEventListener(
+              'change',
+              event => {
+
+                listState[key] =
+                  event.target.value;
+
+                listState.page = 1;
+
+                renderLeaderList();
+
+              }
+            );
+
+        }
+      );
+
+  }
+
+
+  function bindLeaderListButtons() {
+
+    document
+      .querySelectorAll(
+        '[data-toggle-employment]'
+      )
+      .forEach(
+        button => {
+
+          button.addEventListener(
+            'click',
+            () => {
+
+              const id =
+                button.dataset.toggleEmployment;
+
+
+              if (
+                listState.expanded.has(id)
+              ) {
+                listState.expanded.delete(id);
+              } else {
+                listState.expanded.add(id);
+              }
+
+
+              renderLeaderList();
+
+            }
+          );
+
+        }
+      );
 
 
     document
@@ -1500,20 +1503,14 @@
                     'get_or_create_leader_assessment',
                     {
                       p_checkpoint_id:
-                        button.dataset
-                          .leaderCheckpoint
+                        button.dataset.leaderCheckpoint
                     }
                   );
 
 
               if (error) {
-
-                alert(
-                  error.message
-                );
-
+                alert(error.message);
                 return;
-
               }
 
 
@@ -1534,7 +1531,8 @@
 
 
   // ============================================================
-  // RH / GESTOR RH
+  // RH / HR_MANAGER
+  // UMA LINHA POR COLABORADOR
   // ============================================================
 
   async function loadManagement() {
@@ -1549,21 +1547,20 @@
           id,
           leader_id,
           admission_date,
+          status,
 
           people (
-            full_name
+            full_name,
+            cpf
           ),
 
           operations (
             id,
-            name,
-
-            regionals (
-              name
-            )
+            name
           ),
 
           leader:profiles!employments_leader_id_fkey (
+            id,
             full_name
           ),
 
@@ -1579,6 +1576,13 @@
             )
           )
         `)
+        .in(
+          'status',
+          [
+            'IN_JOURNEY',
+            'COMPLETED'
+          ]
+        )
         .order(
           'admission_date',
           {
@@ -1587,14 +1591,11 @@
         );
 
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
 
     employmentsCache =
-      data ||
-      [];
+      data || [];
 
 
     const checkpointIds =
@@ -1603,43 +1604,10 @@
       );
 
 
-    submissionsCache = [];
-
-
-    if (
-      checkpointIds.length
-    ) {
-
-      const result =
-        await journeySupabase
-          .from(
-            'journey_assessment_submissions'
-          )
-          .select(`
-            id,
-            checkpoint_id,
-            respondent_type,
-            status,
-            submitted_at
-          `)
-          .in(
-            'checkpoint_id',
-            checkpointIds
-          );
-
-
-      if (
-        result.error
-      ) {
-        throw result.error;
-      }
-
-
-      submissionsCache =
-        result.data ||
-        [];
-
-    }
+    submissionsCache =
+      await fetchSubmissions(
+        checkpointIds
+      );
 
 
     renderManagement();
@@ -1647,18 +1615,29 @@
   }
 
 
-  // ============================================================
-  // RENDER RH
-  // ============================================================
-
   function renderManagement() {
 
-    const items = [];
-
-
-    employmentsCache
-      .forEach(
+    const rows =
+      employmentsCache.map(
         employment => {
+
+          const person =
+            asObject(
+              employment.people
+            );
+
+
+          const operation =
+            asObject(
+              employment.operations
+            );
+
+
+          const leader =
+            asObject(
+              employment.leader
+            );
+
 
           const journey =
             getJourney(
@@ -1666,53 +1645,100 @@
             );
 
 
-          if (!journey) {
-            return;
-          }
+          const checkpoints =
+            asArray(
+              journey?.journey_checkpoints
+            )
+              .slice()
+              .sort(checkpointSort);
 
 
-          asArray(
-            journey
-              .journey_checkpoints
-          )
-            .forEach(
+          const states =
+            checkpoints.map(
               checkpoint => {
 
                 const employeeSubmission =
-                  submissionsCache
-                    .find(
-                      item =>
-                        item.checkpoint_id ===
-                        checkpoint.id
-                        &&
-                        item.respondent_type ===
-                        'EMPLOYEE'
-                    );
+                  submissionsCache.find(
+                    item =>
+                      item.checkpoint_id ===
+                      checkpoint.id
+                      &&
+                      item.respondent_type ===
+                      'EMPLOYEE'
+                  );
 
 
                 const leaderSubmission =
-                  submissionsCache
-                    .find(
-                      item =>
-                        item.checkpoint_id ===
-                        checkpoint.id
-                        &&
-                        item.respondent_type ===
-                        'LEADER'
-                    );
+                  submissionsCache.find(
+                    item =>
+                      item.checkpoint_id ===
+                      checkpoint.id
+                      &&
+                      item.respondent_type ===
+                      'LEADER'
+                  );
 
 
-                items.push({
-
-                  employment,
+                return {
                   checkpoint,
-                  employeeSubmission,
-                  leaderSubmission
 
-                });
+                  employeeSubmission,
+
+                  leaderSubmission,
+
+                  employeeStatus:
+                    effectiveStatus(
+                      checkpoint,
+                      employeeSubmission
+                    ),
+
+                  leaderStatus:
+                    employment.leader_id
+                      ? effectiveStatus(
+                          checkpoint,
+                          leaderSubmission
+                        )
+                      : 'NO_LEADER'
+                };
 
               }
             );
+
+
+          const current =
+            states.find(
+              state =>
+                [
+                  'OVERDUE',
+                  'DRAFT',
+                  'AVAILABLE'
+                ].includes(
+                  state.employeeStatus
+                )
+                ||
+                [
+                  'OVERDUE',
+                  'DRAFT',
+                  'AVAILABLE',
+                  'NO_LEADER'
+                ].includes(
+                  state.leaderStatus
+                )
+            )
+            ||
+            states[
+              states.length - 1
+            ];
+
+
+          return {
+            employment,
+            person,
+            operation,
+            leader,
+            states,
+            current
+          };
 
         }
       );
@@ -1723,20 +1749,12 @@
       <div class="assessment-hero">
 
         <div>
-
-          <span>
-            AVALIAÇÕES DA JORNADA
-          </span>
-
-          <h2>
-            D1 → D90
-          </h2>
+          <span>AVALIAÇÕES DA JORNADA</span>
+          <h2>D1 → D90</h2>
 
           <p>
-            Compare a visão do colaborador
-            e da liderança.
+            Visão consolidada por colaborador.
           </p>
-
         </div>
 
       </div>
@@ -1751,31 +1769,12 @@
             <thead>
 
               <tr>
-
-                <th>
-                  Colaborador
-                </th>
-
-                <th>
-                  Operação
-                </th>
-
-                <th>
-                  Etapa
-                </th>
-
-                <th>
-                  Colaborador
-                </th>
-
-                <th>
-                  Liderança
-                </th>
-
-                <th>
-                  Prazo
-                </th>
-
+                <th>Colaborador</th>
+                <th>Operação</th>
+                <th>Líder atual</th>
+                <th>Etapa</th>
+                <th>Colaborador</th>
+                <th>Liderança</th>
               </tr>
 
             </thead>
@@ -1784,131 +1783,62 @@
             <tbody>
 
               ${
-                items.length
+                rows.length
 
-                  ? items
-                      .map(
-                        item => {
+                  ? rows.map(
+                      row => `
 
-                          const employee =
-                            asObject(
-                              item
-                                .employment
-                                .people
-                            );
+                        <tr>
 
+                          <td>
+                            <strong>
+                              ${escapeHTML(row.person?.full_name || '-')}
+                            </strong>
+                          </td>
 
-                          const operation =
-                            asObject(
-                              item
-                                .employment
-                                .operations
-                            );
+                          <td>
+                            ${escapeHTML(row.operation?.name || '-')}
+                          </td>
 
+                          <td>
 
-                          return `
+                            ${
+                              row.leader
+                                ? escapeHTML(row.leader.full_name)
+                                : `<span class="assessment-pill danger">⚠ Sem líder</span>`
+                            }
 
-                            <tr>
+                          </td>
 
-                              <td>
+                          <td>
+                            <strong>
+                              ${escapeHTML(row.current?.checkpoint?.checkpoint || '-')}
+                            </strong>
+                          </td>
 
-                                <strong>
+                          <td>
+                            ${statusBadge(row.current?.employeeStatus || 'FUTURE')}
+                          </td>
 
-                                  ${escapeHTML(
-                                    employee?.full_name ||
-                                    ''
-                                  )}
+                          <td>
+                            ${
+                              row.current?.leaderStatus === 'NO_LEADER'
+                                ? `<span class="assessment-pill danger">⚠ Sem líder</span>`
+                                : statusBadge(row.current?.leaderStatus || 'FUTURE')
+                            }
+                          </td>
 
-                                </strong>
+                        </tr>
 
-                              </td>
-
-
-                              <td>
-
-                                ${escapeHTML(
-                                  operation?.name ||
-                                  '-'
-                                )}
-
-                              </td>
-
-
-                              <td>
-
-                                <strong>
-
-                                  ${escapeHTML(
-                                    item
-                                      .checkpoint
-                                      .checkpoint
-                                  )}
-
-                                </strong>
-
-                              </td>
-
-
-                              <td>
-
-                                ${sideStatus(
-                                  item.checkpoint,
-                                  item.employeeSubmission
-                                )}
-
-                              </td>
-
-
-                              <td>
-
-                                ${
-                                  !item.employment.leader_id
-                                  &&
-                                  !item.leaderSubmission
-
-                                    ? `
-
-                                        <span class="assessment-pill danger">
-                                          ⚠ Sem líder
-                                        </span>
-
-                                      `
-
-                                    : sideStatus(
-                                        item.checkpoint,
-                                        item.leaderSubmission
-                                      )
-                                }
-
-                              </td>
-
-
-                              <td>
-
-                                ${formatDate(
-                                  item
-                                    .checkpoint
-                                    .due_at
-                                )}
-
-                              </td>
-
-                            </tr>
-
-                          `;
-
-                        }
-                      )
-                      .join('')
+                      `
+                    ).join('')
 
                   : `
 
                       <tr>
-
                         <td colspan="6">
                           Nenhuma avaliação encontrada.
                         </td>
-
                       </tr>
 
                     `
@@ -1924,61 +1854,196 @@
 
     `;
 
+  }
+
+
+  // ============================================================
+  // CHECKPOINT EMPLOYEE
+  // ============================================================
+
+  function renderCheckpoint(
+    checkpoint,
+    submission
+  ) {
+
+    const status =
+      effectiveStatus(
+        checkpoint,
+        submission
+      );
+
+
+    if (
+      status ===
+      'SUBMITTED'
+    ) {
+
+      return `
+
+        <div class="assessment-checkpoint">
+
+          <b class="checkpoint-code">
+            ${escapeHTML(checkpoint.checkpoint)}
+          </b>
+
+          <div>
+            <strong>Avaliação respondida</strong>
+            <small>
+              ${formatDate(submission.submitted_at)}
+            </small>
+          </div>
+
+          ${statusBadge(status)}
+
+          <button
+            class="assessment-outline"
+            type="button"
+            data-view-submission="${submission.id}"
+          >
+            Ver respostas
+          </button>
+
+        </div>
+
+      `;
+
+    }
+
+
+    if (
+      status ===
+      'FUTURE'
+    ) {
+
+      return `
+
+        <div class="assessment-checkpoint">
+
+          <b class="checkpoint-code">
+            ${escapeHTML(checkpoint.checkpoint)}
+          </b>
+
+          <div>
+            <strong>Em breve</strong>
+
+            <small>
+              Libera em
+              ${formatDate(checkpoint.opens_at)}
+            </small>
+          </div>
+
+          ${statusBadge(status)}
+
+        </div>
+
+      `;
+
+    }
+
+
+    return `
+
+      <div class="assessment-checkpoint">
+
+        <b class="checkpoint-code">
+          ${escapeHTML(checkpoint.checkpoint)}
+        </b>
+
+        <div>
+
+          <strong>
+
+            ${
+              status === 'DRAFT'
+                ? 'Continuar avaliação'
+                : 'Avaliação disponível'
+            }
+
+          </strong>
+
+          <small>
+            Prazo:
+            ${formatDate(checkpoint.due_at)}
+          </small>
+
+        </div>
+
+        ${statusBadge(status)}
+
+        <button
+          class="primary-action-button"
+          type="button"
+          data-answer-checkpoint="${checkpoint.id}"
+        >
+          ${
+            status === 'DRAFT'
+              ? 'Continuar'
+              : 'Responder'
+          }
+        </button>
+
+      </div>
+
+    `;
+
+  }
+
+
+  // ============================================================
+  // ABRIR AVALIAÇÃO
+  // ============================================================
+
+  function bindAssessmentButtons() {
+
+    document
+      .querySelectorAll(
+        '[data-answer-checkpoint]'
+      )
+      .forEach(
+        button => {
+
+          button.addEventListener(
+            'click',
+            () => openEmployeeAssessment(
+              button.dataset.answerCheckpoint
+            )
+          );
+
+        }
+      );
+
 
     bindViewButtons();
 
   }
 
 
-  // ============================================================
-  // STATUS
-  // ============================================================
-
-  function sideStatus(
-    checkpoint,
-    submission
+  async function openEmployeeAssessment(
+    checkpointId
   ) {
 
-    if (
-      submission?.status ===
-      'SUBMITTED'
-    ) {
+    const {
+      data: submissionId,
+      error
+    } =
+      await journeySupabase
+        .rpc(
+          'get_or_create_employee_assessment',
+          {
+            p_checkpoint_id:
+              checkpointId
+          }
+        );
 
-      return `
 
-        <button
-          class="assessment-outline"
-          type="button"
-          data-view-submission="${submission.id}"
-        >
-          ✓ Respondida
-        </button>
-
-      `;
-
+    if (error) {
+      alert(error.message);
+      return;
     }
 
 
-    if (
-      submission?.status ===
-      'DRAFT'
-    ) {
-
-      return `
-
-        <span class="assessment-pill warning">
-          Rascunho
-        </span>
-
-      `;
-
-    }
-
-
-    return statusBadge(
-      availabilityStatus(
-        checkpoint
-      )
+    await openForm(
+      submissionId
     );
 
   }
@@ -2026,9 +2091,7 @@
     ) {
 
       alert(
-        submissionResult
-          .error
-          .message
+        submissionResult.error.message
       );
 
       return;
@@ -2042,8 +2105,7 @@
 
     const checkpoint =
       asObject(
-        submission
-          .journey_checkpoints
+        submission.journey_checkpoints
       );
 
 
@@ -2095,9 +2157,7 @@
     ) {
 
       alert(
-        questionResult
-          .error
-          .message
+        questionResult.error.message
       );
 
       return;
@@ -2106,13 +2166,10 @@
 
 
     const questions =
-      questionResult.data ||
-      [];
+      questionResult.data || [];
 
 
-    if (
-      !questions.length
-    ) {
+    if (!questions.length) {
 
       alert(
         `Ainda não existem perguntas cadastradas para ${checkpoint.checkpoint}.`
@@ -2146,9 +2203,7 @@
     ) {
 
       alert(
-        answerResult
-          .error
-          .message
+        answerResult.error.message
       );
 
       return;
@@ -2157,8 +2212,7 @@
 
 
     const answers =
-      answerResult.data ||
-      [];
+      answerResult.data || [];
 
 
     openGenericModal(`
@@ -2170,9 +2224,7 @@
           <div>
 
             <span class="assessment-eyebrow">
-              ${escapeHTML(
-                checkpoint.checkpoint
-              )}
+              ${escapeHTML(checkpoint.checkpoint)}
             </span>
 
             <h2>
@@ -2184,13 +2236,10 @@
 
             <p>
               Prazo:
-              ${formatDate(
-                checkpoint.due_at
-              )}
+              ${formatDate(checkpoint.due_at)}
             </p>
 
           </div>
-
 
           <button
             id="closeGenericModalButton"
@@ -2246,7 +2295,6 @@
               Salvar rascunho
             </button>
 
-
             <button
               class="primary-action-button"
               type="submit"
@@ -2269,15 +2317,12 @@
       )
       ?.addEventListener(
         'click',
-        () => {
-
+        () =>
           saveForm(
             submissionId,
             questions,
             false
-          );
-
-        }
+          )
       );
 
 
@@ -2291,7 +2336,6 @@
 
           event.preventDefault();
 
-
           saveForm(
             submissionId,
             questions,
@@ -2303,10 +2347,6 @@
 
   }
 
-
-  // ============================================================
-  // PERGUNTA
-  // ============================================================
 
   function renderQuestion(
     question,
@@ -2328,9 +2368,7 @@
           answer
         );
 
-    }
-
-    else if (
+    } else if (
       question.question_type ===
       'YES_NO'
     ) {
@@ -2341,9 +2379,7 @@
           answer
         );
 
-    }
-
-    else if (
+    } else if (
       question.question_type ===
       'TEXT'
     ) {
@@ -2354,16 +2390,11 @@
           data-text-answer
           rows="4"
           placeholder="Digite sua resposta..."
-        >${escapeHTML(
-          answer?.text_value ||
-          ''
-        )}</textarea>
+        >${escapeHTML(answer?.text_value || '')}</textarea>
 
       `;
 
-    }
-
-    else {
+    } else {
 
       input =
         renderChoice(
@@ -2385,21 +2416,19 @@
           ${index}
         </span>
 
-
         <small>
           ${escapeHTML(
-            question.dimension ||
-            ''
+            prettyDimension(
+              question.dimension
+            )
           )}
         </small>
-
 
         <strong>
           ${escapeHTML(
             question.question_text
           )}
         </strong>
-
 
         ${input}
 
@@ -2409,10 +2438,6 @@
 
   }
 
-
-  // ============================================================
-  // ESCALA
-  // ============================================================
 
   function renderScale(
     question,
@@ -2444,9 +2469,7 @@
                       Number(
                         answer?.numeric_value
                       ) === number
-
                         ? 'checked'
-
                         : ''
                     }
                   >
@@ -2482,10 +2505,6 @@
   }
 
 
-  // ============================================================
-  // SIM / NÃO
-  // ============================================================
-
   function renderYesNo(
     question,
     answer
@@ -2502,18 +2521,13 @@
             name="q_${question.id}"
             value="true"
             ${
-              answer?.boolean_value ===
-              true
-
+              answer?.boolean_value === true
                 ? 'checked'
-
                 : ''
             }
           >
 
-          <span>
-            Sim
-          </span>
+          <span>Sim</span>
 
         </label>
 
@@ -2525,18 +2539,13 @@
             name="q_${question.id}"
             value="false"
             ${
-              answer?.boolean_value ===
-              false
-
+              answer?.boolean_value === false
                 ? 'checked'
-
                 : ''
             }
           >
 
-          <span>
-            Não
-          </span>
+          <span>Não</span>
 
         </label>
 
@@ -2547,10 +2556,6 @@
   }
 
 
-  // ============================================================
-  // MÚLTIPLA ESCOLHA
-  // ============================================================
-
   function renderChoice(
     question,
     answer
@@ -2560,9 +2565,7 @@
       Array.isArray(
         question.options
       )
-
         ? question.options
-
         : [];
 
 
@@ -2580,23 +2583,17 @@
                   <input
                     type="radio"
                     name="q_${question.id}"
-                    value="${escapeHTML(
-                      option
-                    )}"
+                    value="${escapeHTML(option)}"
                     ${
                       answer?.option_value ===
                       option
-
                         ? 'checked'
-
                         : ''
                     }
                   >
 
                   <span>
-                    ${escapeHTML(
-                      option
-                    )}
+                    ${escapeHTML(option)}
                   </span>
 
                 </label>
@@ -2612,10 +2609,6 @@
 
   }
 
-
-  // ============================================================
-  // SALVAR
-  // ============================================================
 
   async function saveForm(
     submissionId,
@@ -2635,20 +2628,11 @@
               );
 
 
-            let numeric =
-              null;
-
-            let text =
-              null;
-
-            let boolean =
-              null;
-
-            let option =
-              null;
-
-            let hasValue =
-              false;
+            let numeric = null;
+            let text = null;
+            let boolean = null;
+            let option = null;
+            let hasValue = false;
 
 
             if (
@@ -2657,37 +2641,29 @@
             ) {
 
               const selected =
-                container
-                  ?.querySelector(
-                    `input[name="q_${question.id}"]:checked`
-                  );
+                container?.querySelector(
+                  `input[name="q_${question.id}"]:checked`
+                );
 
 
               if (selected) {
 
                 numeric =
-                  Number(
-                    selected.value
-                  );
+                  Number(selected.value);
 
-                hasValue =
-                  true;
+                hasValue = true;
 
               }
 
-            }
-
-
-            else if (
+            } else if (
               question.question_type ===
               'YES_NO'
             ) {
 
               const selected =
-                container
-                  ?.querySelector(
-                    `input[name="q_${question.id}"]:checked`
-                  );
+                container?.querySelector(
+                  `input[name="q_${question.id}"]:checked`
+                );
 
 
               if (selected) {
@@ -2696,15 +2672,11 @@
                   selected.value ===
                   'true';
 
-                hasValue =
-                  true;
+                hasValue = true;
 
               }
 
-            }
-
-
-            else if (
+            } else if (
               question.question_type ===
               'TEXT'
             ) {
@@ -2723,16 +2695,12 @@
               hasValue =
                 !!text;
 
-            }
-
-
-            else {
+            } else {
 
               const selected =
-                container
-                  ?.querySelector(
-                    `input[name="q_${question.id}"]:checked`
-                  );
+                container?.querySelector(
+                  `input[name="q_${question.id}"]:checked`
+                );
 
 
               if (selected) {
@@ -2740,8 +2708,7 @@
                 option =
                   selected.value;
 
-                hasValue =
-                  true;
+                hasValue = true;
 
               }
 
@@ -2749,14 +2716,12 @@
 
 
             return {
-
               question,
               numeric,
               text,
               boolean,
               option,
               hasValue
-
             };
 
           }
@@ -2801,14 +2766,11 @@
         }
 
 
-        const {
-          error
-        } =
+        const { error } =
           await journeySupabase
             .rpc(
               'save_journey_assessment_answer',
               {
-
                 p_submission_id:
                   submissionId,
 
@@ -2826,7 +2788,6 @@
 
                 p_option_value:
                   response.option
-
               }
             );
 
@@ -2858,9 +2819,7 @@
       }
 
 
-      const {
-        error
-      } =
+      const { error } =
         await journeySupabase
           .rpc(
             'submit_journey_assessment',
@@ -2887,14 +2846,9 @@
       await window
         .loadAssessmentsPage();
 
-    }
+    } catch (error) {
 
-    catch (error) {
-
-      console.error(
-        error
-      );
-
+      console.error(error);
 
       alert(
         error.message ||
@@ -2907,7 +2861,7 @@
 
 
   // ============================================================
-  // VISUALIZAR RESPOSTAS
+  // VISUALIZAÇÃO
   // ============================================================
 
   async function viewSubmission(
@@ -2941,21 +2895,13 @@
 
 
     if (error) {
-
-      alert(
-        error.message
-      );
-
+      alert(error.message);
       return;
-
     }
 
 
     const answers =
-      (
-        data ||
-        []
-      )
+      (data || [])
         .slice()
         .sort(
           (
@@ -2963,38 +2909,22 @@
             b
           ) => {
 
-            const questionA =
+            const qa =
               asObject(
-                a
-                  .journey_assessment_questions
+                a.journey_assessment_questions
               );
 
-
-            const questionB =
+            const qb =
               asObject(
-                b
-                  .journey_assessment_questions
+                b.journey_assessment_questions
               );
-
 
             return (
-
-              (
-                questionA
-                  ?.display_order
-                ||
-                0
-              )
-
-              -
-
-              (
-                questionB
-                  ?.display_order
-                ||
-                0
-              )
-
+              qa?.display_order || 0
+            )
+            -
+            (
+              qb?.display_order || 0
             );
 
           }
@@ -3006,13 +2936,10 @@
       <div class="modal-header">
 
         <div>
-
           <h2>
             Respostas da Avaliação
           </h2>
-
         </div>
-
 
         <button
           id="closeGenericModalButton"
@@ -3036,8 +2963,7 @@
 
                     const question =
                       asObject(
-                        answer
-                          .journey_assessment_questions
+                        answer.journey_assessment_questions
                       );
 
 
@@ -3047,23 +2973,21 @@
 
                         <small>
                           ${escapeHTML(
-                            question?.dimension ||
-                            ''
+                            prettyDimension(
+                              question?.dimension
+                            )
                           )}
                         </small>
 
                         <strong>
                           ${escapeHTML(
-                            question?.question_text ||
-                            ''
+                            question?.question_text || ''
                           )}
                         </strong>
 
                         <p>
                           ${escapeHTML(
-                            answerValue(
-                              answer
-                            )
+                            answerValue(answer)
                           )}
                         </p>
 
@@ -3091,10 +3015,6 @@
   }
 
 
-  // ============================================================
-  // BOTÕES VER
-  // ============================================================
-
   function bindViewButtons() {
 
     document
@@ -3106,14 +3026,10 @@
 
           button.addEventListener(
             'click',
-            () => {
-
+            () =>
               viewSubmission(
-                button.dataset
-                  .viewSubmission
-              );
-
-            }
+                button.dataset.viewSubmission
+              )
           );
 
         }
@@ -3123,176 +3039,128 @@
 
 
   // ============================================================
-  // HELPERS
+  // SUBMISSIONS
   // ============================================================
 
-  function getJourney(
-    employment
+  async function fetchSubmissions(
+    checkpointIds,
+    respondentType = null
   ) {
 
-    const journeys =
-      asArray(
-        employment.journeys
-      );
+    if (
+      !checkpointIds.length
+    ) {
+      return [];
+    }
 
 
-    return (
-
-      journeys.find(
-        journey =>
-          journey.status ===
-          'ACTIVE'
-      )
-
-      ||
-
-      journeys[0]
-
-      ||
-
-      null
-
-    );
-
-  }
-
-
-  function collectCheckpointIds(
-    employments
-  ) {
-
-    const ids = [];
-
-
-    employments.forEach(
-      employment => {
-
-        const journey =
-          getJourney(
-            employment
-          );
-
-
-        if (!journey) {
-          return;
-        }
-
-
-        asArray(
-          journey
-            .journey_checkpoints
+    let query =
+      journeySupabase
+        .from(
+          'journey_assessment_submissions'
         )
-          .forEach(
-            checkpoint => {
-
-              ids.push(
-                checkpoint.id
-              );
-
-            }
-          );
-
-      }
-    );
-
-
-    return [
-      ...new Set(
-        ids
-      )
-    ];
-
-  }
+        .select(`
+          id,
+          checkpoint_id,
+          employment_id,
+          respondent_type,
+          status,
+          submitted_at
+        `)
+        .in(
+          'checkpoint_id',
+          checkpointIds
+        );
 
 
-  function checkpointSort(
-    a,
-    b
-  ) {
+    if (
+      respondentType
+    ) {
 
-    const order = {
+      query =
+        query.eq(
+          'respondent_type',
+          respondentType
+        );
 
-      D1:
-        1,
-
-      D7:
-        7,
-
-      D15:
-        15,
-
-      D30:
-        30,
-
-      D45:
-        45,
-
-      D90:
-        90
-
-    };
+    }
 
 
-    return (
+    const {
+      data,
+      error
+    } =
+      await query;
 
-      (
-        order[
-          a.checkpoint
-        ]
-        ||
-        999
-      )
 
-      -
+    if (error) throw error;
 
-      (
-        order[
-          b.checkpoint
-        ]
-        ||
-        999
-      )
 
-    );
+    return data || [];
 
   }
 
 
-  function availabilityStatus(
-    checkpoint
+  // ============================================================
+  // STATUS / ORDENAÇÃO
+  // ============================================================
+
+  function effectiveStatus(
+    checkpoint,
+    submission
   ) {
+
+    if (
+      submission?.status ===
+      'SUBMITTED'
+    ) {
+      return 'SUBMITTED';
+    }
+
+
+    if (
+      submission?.status ===
+      'DRAFT'
+    ) {
+      return 'DRAFT';
+    }
+
 
     const now =
       new Date();
 
 
     const opens =
-      new Date(
-        checkpoint.opens_at
-      );
+      checkpoint.opens_at
+        ? new Date(
+            checkpoint.opens_at
+          )
+        : null;
 
 
     const due =
-      new Date(
-        checkpoint.due_at
-      );
+      checkpoint.due_at
+        ? new Date(
+            checkpoint.due_at
+          )
+        : null;
 
 
     if (
+      opens
+      &&
       now < opens
     ) {
-
       return 'FUTURE';
-
     }
 
 
     if (
+      due
+      &&
       now > due
     ) {
-
       return 'OVERDUE';
-
     }
 
 
@@ -3301,11 +3169,67 @@
   }
 
 
-  function statusBadge(
-    status
+  function compareUrgency(
+    a,
+    b
   ) {
 
-    const values = {
+    const priority = {
+      OVERDUE: 0,
+      DRAFT: 1,
+      AVAILABLE: 2,
+      FUTURE: 3,
+      SUBMITTED: 4
+    };
+
+
+    const pa =
+      priority[
+        a.primary.status
+      ]
+      ??
+      99;
+
+
+    const pb =
+      priority[
+        b.primary.status
+      ]
+      ??
+      99;
+
+
+    if (
+      pa !== pb
+    ) {
+      return pa - pb;
+    }
+
+
+    const da =
+      a.primary.checkpoint.due_at
+        ? new Date(
+            a.primary.checkpoint.due_at
+          ).getTime()
+        : Infinity;
+
+
+    const db =
+      b.primary.checkpoint.due_at
+        ? new Date(
+            b.primary.checkpoint.due_at
+          ).getTime()
+        : Infinity;
+
+
+    return da - db;
+
+  }
+
+
+  function statusBadge(status) {
+
+    const map = {
 
       SUBMITTED:
         [
@@ -3342,54 +3266,209 @@
 
     const [
       css,
-      label
+      text
     ] =
-      values[status]
+      map[status]
       ||
-      values.FUTURE;
+      map.FUTURE;
+
+
+    return `
+      <span class="assessment-pill ${css}">
+        ${text}
+      </span>
+    `;
+
+  }
+
+
+  // ============================================================
+  // PAGINAÇÃO
+  // ============================================================
+
+  function renderPagination(
+    totalPages
+  ) {
+
+    if (
+      totalPages <= 1
+    ) {
+      return '';
+    }
 
 
     return `
 
-      <span
-        class="assessment-pill ${css}"
-      >
-        ${label}
-      </span>
+      <div class="assessment-pagination">
+
+        <button
+          type="button"
+          data-page-prev
+          ${
+            listState.page === 1
+              ? 'disabled'
+              : ''
+          }
+        >
+          ‹
+        </button>
+
+        <span>
+          Página
+          <strong>${listState.page}</strong>
+          de
+          <strong>${totalPages}</strong>
+        </span>
+
+        <button
+          type="button"
+          data-page-next
+          ${
+            listState.page === totalPages
+              ? 'disabled'
+              : ''
+          }
+        >
+          ›
+        </button>
+
+      </div>
 
     `;
 
   }
 
 
-  function formatDate(
-    value
+  function bindPagination() {
+
+    document
+      .querySelector(
+        '[data-page-prev]'
+      )
+      ?.addEventListener(
+        'click',
+        () => {
+
+          listState.page =
+            Math.max(
+              1,
+              listState.page - 1
+            );
+
+          renderLeaderList();
+
+        }
+      );
+
+
+    document
+      .querySelector(
+        '[data-page-next]'
+      )
+      ?.addEventListener(
+        'click',
+        () => {
+
+          listState.page++;
+
+          renderLeaderList();
+
+        }
+      );
+
+  }
+
+
+  // ============================================================
+  // HELPERS
+  // ============================================================
+
+  function getJourney(
+    employment
   ) {
 
-    if (!value) {
-      return '-';
-    }
-
-
-    const date =
-      new Date(
-        value
+    const journeys =
+      asArray(
+        employment.journeys
       );
 
 
-    if (
-      Number.isNaN(
-        date.getTime()
+    return (
+      journeys.find(
+        journey =>
+          journey.status === 'ACTIVE'
+          ||
+          journey.status === 'IN_JOURNEY'
       )
-    ) {
-      return '-';
-    }
+      ||
+      journeys[0]
+      ||
+      null
+    );
+
+  }
 
 
-    return date
-      .toLocaleDateString(
-        'pt-BR'
-      );
+  function collectCheckpointIds(
+    employments
+  ) {
+
+    const ids = [];
+
+
+    employments.forEach(
+      employment => {
+
+        const journey =
+          getJourney(employment);
+
+
+        if (!journey) {
+          return;
+        }
+
+
+        asArray(
+          journey.journey_checkpoints
+        )
+          .forEach(
+            checkpoint =>
+              ids.push(
+                checkpoint.id
+              )
+          );
+
+      }
+    );
+
+
+    return [
+      ...new Set(ids)
+    ];
+
+  }
+
+
+  function checkpointSort(
+    a,
+    b
+  ) {
+
+    return (
+      CHECKPOINT_ORDER[
+        a.checkpoint
+      ]
+      ||
+      999
+    )
+    -
+    (
+      CHECKPOINT_ORDER[
+        b.checkpoint
+      ]
+      ||
+      999
+    );
 
   }
 
@@ -3399,11 +3478,9 @@
   ) {
 
     if (
-      answer.numeric_value !==
-      null
+      answer.numeric_value !== null
       &&
-      answer.numeric_value !==
-      undefined
+      answer.numeric_value !== undefined
     ) {
 
       return `${answer.numeric_value} / 5`;
@@ -3412,127 +3489,75 @@
 
 
     if (
-      answer.boolean_value !==
-      null
+      answer.boolean_value !== null
       &&
-      answer.boolean_value !==
-      undefined
+      answer.boolean_value !== undefined
     ) {
 
       return answer.boolean_value
-
         ? 'Sim'
-
         : 'Não';
 
     }
 
 
     return (
-
       answer.option_value
-
       ||
-
       answer.text_value
-
       ||
-
       '-'
-
     );
 
   }
 
 
-  // ============================================================
-  // MODAL
-  // ============================================================
-
-  function openGenericModal(
-    content
+  function prettyDimension(
+    value
   ) {
 
-    closeGenericModal();
-
-
-    const overlay =
-      document.createElement(
-        'div'
-      );
-
-
-    overlay.id =
-      'genericModalOverlay';
-
-
-    overlay.className =
-      'modal-overlay';
-
-
-    overlay.innerHTML = `
-
-      <div class="import-modal">
-
-        ${content}
-
-      </div>
-
-    `;
-
-
-    document.body
-      .appendChild(
-        overlay
-      );
-
-
-    document
-      .getElementById(
-        'closeGenericModalButton'
+    return String(
+      value ||
+      'GERAL'
+    )
+      .replaceAll(
+        '_',
+        ' '
       )
-      ?.addEventListener(
-        'click',
-        closeGenericModal
+      .toLowerCase()
+      .replace(
+        /(^|\s)\S/g,
+        char =>
+          char.toUpperCase()
       );
-
-
-    overlay.addEventListener(
-      'click',
-      event => {
-
-        if (
-          event.target ===
-          overlay
-        ) {
-
-          closeGenericModal();
-
-        }
-
-      }
-    );
 
   }
 
 
-  function closeGenericModal() {
+  function formatCPF(
+    value
+  ) {
 
-    document
-      .getElementById(
-        'genericModalOverlay'
+    const cpf =
+      String(
+        value || ''
       )
-      ?.remove();
+        .replace(
+          /\D/g,
+          ''
+        );
+
+
+    if (
+      cpf.length !== 11
+    ) {
+      return cpf;
+    }
+
+
+    return `${cpf.slice(0,3)}.${cpf.slice(3,6)}.${cpf.slice(6,9)}-${cpf.slice(9)}`;
 
   }
-
-
-  window.openGenericModal =
-    openGenericModal;
-
-
-  window.closeGenericModal =
-    closeGenericModal;
 
 
   // ============================================================
@@ -3562,151 +3587,231 @@
 
     style.textContent = `
 
-      .assessment-hero {
+      .assessment-hero{
         display:flex;
-        align-items:center;
         justify-content:space-between;
+        align-items:center;
         gap:20px;
-        padding:26px;
-        margin-bottom:20px;
-        border-radius:18px;
-        border:1px solid rgba(238,77,45,.18);
-        background:
-          linear-gradient(
-            135deg,
-            rgba(238,77,45,.12),
-            rgba(238,77,45,.02)
-          );
+        padding:24px;
+        margin-bottom:18px;
+        border-radius:16px;
+        border:1px solid rgba(238,77,45,.16);
+        background:linear-gradient(
+          135deg,
+          rgba(238,77,45,.11),
+          rgba(238,77,45,.02)
+        );
       }
 
-      .assessment-hero > div > span,
-      .assessment-eyebrow {
+      .assessment-hero>div>span,
+      .assessment-eyebrow{
         color:#EE4D2D;
         font-size:10px;
         font-weight:800;
         letter-spacing:.1em;
       }
 
-      .assessment-hero h2 {
-        margin:5px 0 8px;
+      .assessment-hero h2{
+        margin:5px 0 7px;
       }
 
-      .assessment-hero p {
+      .assessment-hero p{
         margin:0;
         opacity:.7;
       }
 
-      .assessment-hero > strong {
-        color:#EE4D2D;
+      .assessment-summary-grid{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:12px;
+        margin-bottom:18px;
+      }
+
+      .assessment-summary-grid>div{
+        padding:15px;
+        border:1px solid rgba(127,127,127,.16);
+        border-radius:12px;
+      }
+
+      .assessment-summary-grid small,
+      .assessment-summary-grid strong{
+        display:block;
+      }
+
+      .assessment-summary-grid strong{
+        margin-top:4px;
         font-size:24px;
       }
 
-      .assessment-leader {
+      .assessment-toolbar{
+        display:grid;
+        grid-template-columns:minmax(220px,2fr) repeat(3,minmax(150px,1fr));
+        gap:9px;
+        margin-bottom:12px;
+      }
+
+      .assessment-toolbar input,
+      .assessment-toolbar select{
+        width:100%;
+        box-sizing:border-box;
+        border:1px solid rgba(127,127,127,.2);
+        border-radius:9px;
+        padding:10px;
+        background:transparent;
+        color:inherit;
+      }
+
+      .assessment-list-info{
+        margin-bottom:10px;
+        font-size:12px;
+        opacity:.65;
+      }
+
+      .assessment-row-actions{
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+      }
+
+      .assessment-expanded-row td{
+        background:rgba(127,127,127,.025);
+      }
+
+      .expanded-checkpoints{
+        display:grid;
+        grid-template-columns:repeat(3,minmax(0,1fr));
+        gap:8px;
+        padding:6px 0;
+      }
+
+      .expanded-checkpoint{
+        display:flex;
+        flex-direction:column;
+        align-items:flex-start;
+        gap:8px;
+        padding:12px;
+        border:1px solid rgba(127,127,127,.15);
+        border-radius:10px;
+      }
+
+      .expanded-checkpoint b,
+      .expanded-checkpoint small{
+        display:block;
+      }
+
+      .assessment-pagination{
+        display:flex;
+        justify-content:flex-end;
+        align-items:center;
+        gap:10px;
+        margin-top:15px;
+      }
+
+      .assessment-pagination button{
+        width:34px;
+        height:34px;
+        border-radius:8px;
+        border:1px solid rgba(127,127,127,.2);
+        background:transparent;
+        color:inherit;
+        cursor:pointer;
+      }
+
+      .assessment-pagination button:disabled{
+        opacity:.35;
+        cursor:default;
+      }
+
+      .assessment-leader{
         display:flex;
         align-items:center;
         gap:14px;
-        padding:17px;
-        margin-bottom:20px;
-        border-radius:14px;
-        border:1px solid rgba(238,77,45,.18);
+        padding:16px;
+        margin-bottom:18px;
+        border-radius:13px;
+        border:1px solid rgba(238,77,45,.16);
       }
 
-      .assessment-leader > div:nth-child(2) {
+      .assessment-leader>div:nth-child(2){
         flex:1;
       }
 
       .assessment-leader small,
       .assessment-leader strong,
-      .assessment-leader span {
+      .assessment-leader span{
         display:block;
       }
 
-      .assessment-leader small,
-      .assessment-leader span {
-        opacity:.65;
-      }
-
-      .leader-avatar {
+      .leader-avatar{
         width:42px;
         height:42px;
         min-width:42px;
-        border-radius:50%;
         display:flex;
         align-items:center;
         justify-content:center;
-        background:rgba(238,77,45,.14);
+        border-radius:50%;
+        background:rgba(238,77,45,.13);
         color:#EE4D2D;
         font-weight:800;
       }
 
-      .assessment-checkpoints {
+      .assessment-checkpoints{
         display:flex;
         flex-direction:column;
-        gap:10px;
+        gap:9px;
       }
 
-      .assessment-checkpoint {
+      .assessment-checkpoint{
         display:grid;
-        grid-template-columns:
-          55px minmax(0,1fr) auto auto;
+        grid-template-columns:55px minmax(0,1fr) auto auto;
         align-items:center;
         gap:12px;
-        padding:14px;
-        border:1px solid rgba(127,127,127,.16);
-        border-radius:13px;
+        padding:13px;
+        border:1px solid rgba(127,127,127,.15);
+        border-radius:12px;
       }
 
-      .assessment-checkpoint small,
-      .assessment-checkpoint strong {
-        display:block;
-      }
-
-      .assessment-checkpoint small {
-        opacity:.65;
-        margin-top:4px;
-      }
-
-      .checkpoint-code {
+      .checkpoint-code{
         width:48px;
         height:48px;
         display:flex;
         align-items:center;
         justify-content:center;
-        border-radius:11px;
-        background:rgba(238,77,45,.12);
+        border-radius:10px;
+        background:rgba(238,77,45,.11);
         color:#EE4D2D;
       }
 
-      .assessment-pill {
+      .assessment-pill{
         display:inline-flex;
-        padding:6px 9px;
         border-radius:999px;
+        padding:6px 9px;
         font-size:10px;
         font-weight:800;
         white-space:nowrap;
       }
 
-      .assessment-pill.success {
-        color:#35b76c;
-        background:rgba(53,183,108,.11);
+      .assessment-pill.success{
+        color:#169b50;
+        background:rgba(22,155,80,.10);
       }
 
-      .assessment-pill.warning {
+      .assessment-pill.warning{
         color:#EE4D2D;
-        background:rgba(238,77,45,.11);
+        background:rgba(238,77,45,.10);
       }
 
-      .assessment-pill.danger {
-        color:#e15757;
-        background:rgba(225,87,87,.11);
+      .assessment-pill.danger{
+        color:#d14343;
+        background:rgba(209,67,67,.10);
       }
 
-      .assessment-pill.muted {
+      .assessment-pill.muted{
         opacity:.6;
-        background:rgba(127,127,127,.10);
+        background:rgba(127,127,127,.1);
       }
 
-      .assessment-outline {
+      .assessment-outline{
         border:1px solid rgba(238,77,45,.3);
         border-radius:8px;
         background:transparent;
@@ -3716,18 +3821,14 @@
         font-weight:700;
       }
 
-      .assessment-modal-body {
-        padding:20px;
-      }
-
-      .leader-option {
+      .leader-option{
         width:100%;
         display:flex;
         align-items:center;
         gap:12px;
         padding:12px;
         margin-bottom:8px;
-        border-radius:11px;
+        border-radius:10px;
         border:1px solid rgba(127,127,127,.16);
         background:transparent;
         color:inherit;
@@ -3735,49 +3836,52 @@
         cursor:pointer;
       }
 
-      .leader-option > span:last-child {
+      .leader-option>span:last-child{
         flex:1;
       }
 
       .leader-option strong,
-      .leader-option small {
+      .leader-option small{
         display:block;
       }
 
-      .assessment-form-modal {
+      .assessment-modal-body{
+        padding:20px;
+      }
+
+      .assessment-form-modal{
         max-height:88vh;
         overflow:auto;
       }
 
-      .assessment-form {
+      .assessment-form{
         padding:22px;
       }
 
-      .assessment-question {
+      .assessment-question{
         position:relative;
         padding:18px 0;
         border-bottom:1px solid rgba(127,127,127,.15);
       }
 
-      .assessment-question > small,
-      .assessment-question > strong {
+      .assessment-question>small,
+      .assessment-question>strong{
         display:block;
         margin-left:40px;
       }
 
-      .assessment-question > small {
+      .assessment-question>small{
         color:#EE4D2D;
         font-size:10px;
         font-weight:800;
-        text-transform:uppercase;
       }
 
-      .assessment-question > strong {
+      .assessment-question>strong{
         margin-top:4px;
         margin-bottom:14px;
       }
 
-      .question-number {
+      .question-number{
         position:absolute;
         left:0;
         top:18px;
@@ -3787,12 +3891,12 @@
         align-items:center;
         justify-content:center;
         border-radius:7px;
-        background:rgba(238,77,45,.12);
+        background:rgba(238,77,45,.11);
         color:#EE4D2D;
         font-weight:800;
       }
 
-      .scale-options {
+      .scale-options{
         display:grid;
         grid-template-columns:repeat(5,1fr);
         gap:8px;
@@ -3800,48 +3904,48 @@
       }
 
       .scale-options input,
-      .choice-options input {
+      .choice-options input{
         position:absolute;
         opacity:0;
       }
 
-      .scale-options span {
-        height:44px;
+      .scale-options span{
+        height:42px;
         display:flex;
         align-items:center;
         justify-content:center;
         border:1px solid rgba(127,127,127,.2);
-        border-radius:9px;
+        border-radius:8px;
         cursor:pointer;
         font-weight:800;
       }
 
-      .scale-options input:checked + span,
-      .choice-options input:checked + span {
+      .scale-options input:checked+span,
+      .choice-options input:checked+span{
         background:#EE4D2D;
         border-color:#EE4D2D;
-        color:white;
+        color:#fff;
       }
 
-      .scale-caption {
+      .scale-caption{
         display:flex;
         justify-content:space-between;
         margin:6px 0 0 40px;
-        opacity:.55;
         font-size:10px;
+        opacity:.55;
       }
 
-      .choice-options {
+      .choice-options{
         display:flex;
         gap:8px;
         margin-left:40px;
       }
 
-      .choice-options.vertical {
+      .choice-options.vertical{
         flex-direction:column;
       }
 
-      .choice-options span {
+      .choice-options span{
         display:block;
         padding:10px 14px;
         border:1px solid rgba(127,127,127,.2);
@@ -3849,75 +3953,72 @@
         cursor:pointer;
       }
 
-      .assessment-question textarea {
+      .assessment-question textarea{
         width:calc(100% - 40px);
         margin-left:40px;
         box-sizing:border-box;
         padding:11px;
+        border:1px solid rgba(127,127,127,.2);
+        border-radius:8px;
         background:transparent;
         color:inherit;
-        border:1px solid rgba(127,127,127,.2);
-        border-radius:9px;
-        resize:vertical;
       }
 
-      .assessment-form-footer {
+      .assessment-form-footer{
         display:flex;
         justify-content:flex-end;
         gap:10px;
         margin-top:20px;
       }
 
-      .view-answer {
+      .view-answer{
         padding:14px 0;
         border-bottom:1px solid rgba(127,127,127,.14);
       }
 
       .view-answer small,
-      .view-answer strong {
+      .view-answer strong{
         display:block;
       }
 
-      .view-answer small {
+      .view-answer small{
         color:#EE4D2D;
         font-weight:800;
       }
 
-      .view-answer strong {
-        margin:4px 0 7px;
+      .view-answer p{
+        margin-bottom:0;
       }
 
-      .view-answer p {
-        margin:0;
-      }
-
-      .assessment-empty {
-        padding:60px 20px;
+      .assessment-empty{
+        padding:50px 20px;
         text-align:center;
       }
 
 
-      @media (
-        max-width:800px
-      ) {
+      @media(max-width:1050px){
 
-        .assessment-checkpoint {
-          grid-template-columns:
-            50px minmax(0,1fr);
+        .assessment-toolbar{
+          grid-template-columns:repeat(2,minmax(0,1fr));
         }
 
-        .assessment-checkpoint
-        > .assessment-pill,
-        .assessment-checkpoint
-        > button {
-          grid-column:2;
-          justify-self:start;
+        .expanded-checkpoints{
+          grid-template-columns:repeat(2,minmax(0,1fr));
         }
 
-        .assessment-leader,
-        .assessment-hero {
-          align-items:flex-start;
-          flex-direction:column;
+      }
+
+
+      @media(max-width:700px){
+
+        .assessment-toolbar,
+        .assessment-summary-grid,
+        .expanded-checkpoints{
+          grid-template-columns:1fr;
+        }
+
+        .assessment-checkpoint{
+          grid-template-columns:50px minmax(0,1fr);
         }
 
       }
@@ -3926,15 +4027,13 @@
 
 
     document.head
-      .appendChild(
-        style
-      );
+      .appendChild(style);
 
   }
 
 
   console.log(
-    'Shopee Journey: assessments.js carregado com sucesso.'
+    'Shopee Journey: assessments.js escalável carregado.'
   );
 
 })();
