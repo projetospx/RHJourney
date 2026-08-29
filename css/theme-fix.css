@@ -233,3 +233,187 @@ body.sj-dark .users-operation-chip{
   background:var(--sj-orange-soft)!important;
   color:#ff7357!important;
 }
+
+/* ============================================================
+   V4 — MODAL DO COLABORADOR / TURNOS
+   ============================================================ */
+
+body.sj-dark .employees-modal-card,
+body.sj-dark .employee-modal-shell,
+body.sj-dark .employee-modal-header,
+body.sj-dark .employee-modal-statusbar,
+body.sj-dark .employee-modal-actions,
+body.sj-dark .employee-leader-card,
+body.sj-dark .employee-checkpoint-card,
+body.sj-dark .employee-history-card,
+body.sj-dark .employee-history-item,
+body.sj-dark .employee-empty-block,
+body.sj-dark .employee-rule-note,
+body.sj-dark .employee-form-section,
+body.sj-dark .turns-panel,
+body.sj-dark .turns-metric,
+body.sj-dark .turns-operation-card,
+body.sj-dark .turns-period-row,
+body.sj-dark .turns-modal-card,
+body.sj-dark .turns-modal-header,
+body.sj-dark .turns-modal-body,
+body.sj-dark .turns-modal-footer{
+  background:#17181b!important;
+  color:#f5f5f5!important;
+  border-color:#2b2e34!important;
+  box-shadow:none!important;
+}
+
+body.sj-dark .employees-modal-card{
+  border:1px solid #343840!important;
+}
+
+body.sj-dark .employee-modal-header,
+body.sj-dark .employee-modal-actions,
+body.sj-dark .turns-modal-header,
+body.sj-dark .turns-modal-footer{
+  background:#151619!important;
+}
+
+body.sj-dark .employee-modal-statusbar{
+  background:#1a1c20!important;
+}
+
+body.sj-dark .employee-modal-close,
+body.sj-dark .turns-modal-close{
+  background:#22242a!important;
+  color:#f5f5f5!important;
+  border-color:#343840!important;
+}
+
+body.sj-dark .employee-modal-person h2,
+body.sj-dark .employee-form-section h3,
+body.sj-dark .employee-leader-card strong,
+body.sj-dark .employee-checkpoint-card strong,
+body.sj-dark .turns-operation-card h3,
+body.sj-dark .turns-panel h2,
+body.sj-dark .turns-modal-card h2,
+body.sj-dark .turns-period-row strong{
+  color:#f5f5f5!important;
+}
+
+body.sj-dark .employee-modal-person p,
+body.sj-dark .employee-form-section small,
+body.sj-dark .employee-field>span,
+body.sj-dark .turns-panel p,
+body.sj-dark .turns-operation-card p,
+body.sj-dark .turns-operation-card small,
+body.sj-dark .turns-field>span,
+body.sj-dark .turns-modal-card p{
+  color:#a8adb7!important;
+}
+
+body.sj-dark .employee-field input,
+body.sj-dark .employee-field select,
+body.sj-dark .employee-field textarea,
+body.sj-dark .turns-field input,
+body.sj-dark .turns-search input{
+  background:#101114!important;
+  color:#f7f7f7!important;
+  border-color:#343840!important;
+}
+
+body.sj-dark .employee-field input:disabled,
+body.sj-dark .employee-field select:disabled,
+body.sj-dark .employee-field textarea:disabled{
+  background:#1c1e22!important;
+  color:#a5aab3!important;
+}
+
+body.sj-dark .employees-modal-overlay,
+body.sj-dark .turns-modal-overlay{
+  background:rgba(0,0,0,.78)!important;
+  backdrop-filter:blur(4px);
+}
+
+/* Turnos — estrutura visual */
+.turns-metrics-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  margin-bottom:18px;
+}
+.turns-metric{
+  padding:18px;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  background:#fff;
+}
+.turns-metric small,.turns-metric strong,.turns-metric span{display:block}
+.turns-metric strong{font-size:26px;margin:4px 0}
+.turns-metric span{font-size:12px;color:#6b7280}
+.turns-panel{
+  padding:20px;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  background:#fff;
+}
+.turns-panel-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:18px;
+  margin-bottom:18px;
+}
+.turns-panel-head h2{margin:0 0 4px}
+.turns-panel-head p{margin:0;color:#6b7280}
+.turns-search{min-width:260px}
+.turns-search span,.turns-field span{display:block;font-size:11px;font-weight:800;margin-bottom:6px}
+.turns-search input,.turns-field input{
+  width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d7dbe2;border-radius:9px;background:#fff;color:#111827
+}
+.turns-operations-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.turns-operation-card{border:1px solid #e5e7eb;border-radius:14px;background:#fff;overflow:hidden}
+.turns-operation-head{display:flex;justify-content:space-between;gap:16px;padding:17px;border-bottom:1px solid #e5e7eb}
+.turns-operation-head h3{margin:3px 0}
+.turns-operation-head p{margin:0;color:#6b7280;font-size:12px}
+.turns-operation-head>div>small{color:#EE4D2D;font-weight:900;letter-spacing:.08em}
+.turns-switch-row{display:flex;align-items:center;gap:9px;min-width:210px}
+.turns-switch-row input{width:18px;height:18px;accent-color:#EE4D2D}
+.turns-switch-row strong,.turns-switch-row small{display:block}
+.turns-switch-row small{font-size:10px;color:#6b7280}
+.turns-period-list{padding:10px 16px}
+.turns-period-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid rgba(127,127,127,.15)}
+.turns-period-row:last-child{border-bottom:0}
+.turns-period-row>div:first-child{display:flex;align-items:center;gap:9px}
+.turns-period-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:rgba(238,77,45,.12);color:#EE4D2D}
+.turns-row-actions,.turns-operation-actions{display:flex;gap:8px;flex-wrap:wrap}
+.turns-operation-actions{justify-content:flex-end;padding:14px 16px;border-top:1px solid rgba(127,127,127,.15)}
+.turns-primary-button,.turns-secondary-button,.turns-danger-button{
+  border-radius:8px;padding:9px 12px;font-weight:800;cursor:pointer
+}
+.turns-primary-button{border:1px solid #EE4D2D;background:#EE4D2D;color:#fff}
+.turns-secondary-button{border:1px solid #d7dbe2;background:transparent;color:inherit}
+.turns-danger-button{border:1px solid rgba(220,38,38,.25);background:rgba(220,38,38,.05);color:#dc2626}
+.turns-empty,.turns-empty-inline{padding:20px;color:#6b7280;text-align:center}
+.turns-modal-overlay{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(15,16,18,.65)}
+.turns-modal-card{width:min(520px,100%);border:1px solid #e5e7eb;border-radius:16px;background:#fff;overflow:hidden}
+.turns-modal-header{display:flex;justify-content:space-between;gap:16px;padding:18px;border-bottom:1px solid #e5e7eb}
+.turns-modal-header small{color:#EE4D2D;font-weight:900;letter-spacing:.08em}
+.turns-modal-header h2{margin:3px 0}
+.turns-modal-header p{margin:0;color:#6b7280}
+.turns-modal-close{width:36px;height:36px;border:1px solid #e5e7eb;border-radius:9px;background:#fff;font-size:22px;cursor:pointer}
+.turns-modal-body{padding:18px}
+.turns-quick-options{display:flex;gap:8px;margin-top:12px}
+.turns-quick-options button{border:1px solid rgba(238,77,45,.25);border-radius:8px;background:rgba(238,77,45,.07);color:#EE4D2D;padding:9px 12px;font-weight:800;cursor:pointer}
+.turns-modal-footer{display:flex;justify-content:flex-end;gap:8px;margin:18px -18px -18px;padding:14px 18px;border-top:1px solid #e5e7eb}
+body.sj-dark .turns-operation-head,
+body.sj-dark .turns-operation-actions,
+body.sj-dark .turns-period-row{border-color:#2b2e34!important}
+body.sj-dark .turns-secondary-button{border-color:#343840!important;color:#f5f5f5!important;background:#1b1d21!important}
+body.sj-dark .turns-danger-button{background:rgba(220,38,38,.09)!important}
+body.sj-dark .turns-quick-options button{background:rgba(238,77,45,.12)!important}
+
+@media(max-width:1000px){
+  .turns-metrics-grid,.turns-operations-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:680px){
+  .turns-metrics-grid,.turns-operations-grid{grid-template-columns:1fr}
+  .turns-panel-head,.turns-operation-head{flex-direction:column;align-items:stretch}
+  .turns-search{min-width:0}
+}
