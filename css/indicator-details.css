@@ -238,6 +238,7 @@ body.indicator-detail-open {
 
 .indicator-detail-score strong {
   font-size: 23px;
+  color: #c9361a;
 }
 
 .indicator-detail-score.score-4,
@@ -246,8 +247,17 @@ body.indicator-detail-open {
   color: #067647;
 }
 
+.indicator-detail-score.score-4 strong,
+.indicator-detail-score.score-5 strong {
+  color: #067647;
+}
+
 .indicator-detail-score.score-3 {
   background: #fffaeb;
+  color: #b54708;
+}
+
+.indicator-detail-score.score-3 strong {
   color: #b54708;
 }
 
@@ -404,6 +414,55 @@ body[data-theme='dark'] .indicator-detail-error {
   color: #ffb4a5;
 }
 
+body.sj-dark .indicator-detail-score.score-1 strong,
+body.sj-dark .indicator-detail-score.score-2 strong {
+  color: #c9361a !important;
+}
+
+body.sj-dark .indicator-detail-score.score-3 strong {
+  color: #b54708 !important;
+}
+
+body.sj-dark .indicator-detail-score.score-4 strong,
+body.sj-dark .indicator-detail-score.score-5 strong {
+  color: #067647 !important;
+}
+
+html[data-theme='light'] .indicator-detail-modal h2,
+html[data-theme='light'] .indicator-detail-modal h3,
+html[data-theme='light'] .indicator-detail-modal strong,
+body[data-theme='light'] .indicator-detail-modal h2,
+body[data-theme='light'] .indicator-detail-modal h3,
+body[data-theme='light'] .indicator-detail-modal strong {
+  color: #172033;
+}
+
+html[data-theme='light'] .indicator-detail-modal .indicator-detail-header > div > span,
+html[data-theme='light'] .indicator-detail-modal .indicator-detail-summary .indicator-detail-equation strong,
+body[data-theme='light'] .indicator-detail-modal .indicator-detail-header > div > span,
+body[data-theme='light'] .indicator-detail-modal .indicator-detail-summary .indicator-detail-equation strong {
+  color: #ee4d2d;
+}
+
+html[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-1 strong,
+html[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-2 strong,
+body[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-1 strong,
+body[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-2 strong {
+  color: #c9361a;
+}
+
+html[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-3 strong,
+body[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-3 strong {
+  color: #b54708;
+}
+
+html[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-4 strong,
+html[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-5 strong,
+body[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-4 strong,
+body[data-theme='light'] .indicator-detail-modal .indicator-detail-score.score-5 strong {
+  color: #067647;
+}
+
 @media (max-width: 760px) {
   .indicator-detail-overlay {
     align-items: end;
@@ -429,3 +488,4 @@ body[data-theme='dark'] .indicator-detail-error {
     grid-column: 1 / -1;
   }
 }
+
