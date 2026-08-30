@@ -1,53 +1,125 @@
-(function(){
+(function () {
   'use strict';
 
-  function isDarkColor(color){
-    const match=String(color||'').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-    if(!match) return false;
-    const [r,g,b]=match.slice(1).map(Number);
-    const luminance=(0.2126*r+0.7152*g+0.0722*b)/255;
-    return luminance<0.45;
+  const PRIMARY_STORAGE_KEY = 'shopeeJourneyTheme';
+  const LEGACY_STORAGE_KEYS = ['theme', 'journey-theme'];
+  const VALID_THEMES = new Set(['light', 'dark']);
+
+  let syncing = false;
+
+  function normalizeTheme(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    return VALID_THEMES.has(normalized) ? normalized : null;
   }
 
-  function syncThemeClass(){
-    const body=document.body;
-    if(!body) return;
+  function readTheme() {
+    const htmlTheme = normalizeTheme(
+      document.documentElement.getAttribute('data-theme')
+    );
 
-    const stored=[
-      localStorage.getItem('theme'),
-      localStorage.getItem('shopeeJourneyTheme'),
-      localStorage.getItem('journey-theme')
-    ].filter(Boolean).join(' ').toLowerCase();
+    if (htmlTheme) {
+      return htmlTheme;
+    }
 
-    const htmlTheme=(document.documentElement.getAttribute('data-theme')||'').toLowerCase();
-    const bodyTheme=(body.getAttribute('data-theme')||'').toLowerCase();
-    const classText=(document.documentElement.className+' '+body.className).toLowerCase();
-    const bg=getComputedStyle(body).backgroundColor;
+    const bodyTheme = normalizeTheme(
+      document.body?.getAttribute('data-theme')
+    );
 
-    const dark =
-      stored.includes('dark') ||
-      htmlTheme==='dark' ||
-      bodyTheme==='dark' ||
-      /dark|night/.test(classText) ||
-      isDarkColor(bg);
+    if (bodyTheme) {
+      return bodyTheme;
+    }
 
-    body.classList.toggle('sj-dark', dark);
+    const savedTheme = normalizeTheme(
+      localStorage.getItem(PRIMARY_STORAGE_KEY)
+    );
+
+    if (savedTheme) {
+      return savedTheme;
+    }
+
+    for (const key of LEGACY_STORAGE_KEYS) {
+      const legacyTheme = normalizeTheme(localStorage.getItem(key));
+
+      if (legacyTheme) {
+        return legacyTheme;
+      }
+    }
+
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
   }
 
-  document.addEventListener('DOMContentLoaded',()=>{
-    syncThemeClass();
-    setTimeout(syncThemeClass,150);
-    setTimeout(syncThemeClass,700);
+  function syncTheme() {
+    const body = document.body;
 
-    document.addEventListener('click',event=>{
-      if(event.target.closest('[data-theme-toggle],#themeToggleApp')){
-        setTimeout(syncThemeClass,30);
-        setTimeout(syncThemeClass,250);
+    if (!body || syncing) {
+      return;
+    }
+
+    syncing = true;
+
+    try {
+      const theme = readTheme();
+      const dark = theme === 'dark';
+
+      body.classList.toggle('sj-dark', dark);
+      body.classList.toggle('sj-light', !dark);
+
+      updateToggleButtons(theme);
+    } finally {
+      syncing = false;
+    }
+  }
+
+  function updateToggleButtons(theme) {
+    const dark = theme === 'dark';
+    const targetLabel = dark ? 'claro' : 'escuro';
+    const icon = dark ? '☀️' : '🌙';
+
+    document
+      .querySelectorAll('[data-theme-toggle], #themeToggleApp, #themeToggle')
+      .forEach(button => {
+        button.textContent = icon;
+        button.title = `Mudar para tema ${targetLabel}`;
+        button.setAttribute('aria-label', `Mudar para tema ${targetLabel}`);
+        button.setAttribute('aria-pressed', String(dark));
+      });
+  }
+
+  function scheduleSync() {
+    window.setTimeout(syncTheme, 0);
+    window.setTimeout(syncTheme, 80);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    syncTheme();
+
+    document.addEventListener('click', event => {
+      if (event.target.closest('[data-theme-toggle], #themeToggleApp, #themeToggle')) {
+        scheduleSync();
       }
     });
 
-    const observer=new MutationObserver(()=>syncThemeClass());
-    observer.observe(document.documentElement,{attributes:true,attributeFilter:['class','data-theme']});
-    observer.observe(document.body,{attributes:true,attributeFilter:['class','data-theme']});
+    const observer = new MutationObserver(syncTheme);
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    });
+  });
+
+  window.addEventListener('storage', event => {
+    if (
+      event.key === PRIMARY_STORAGE_KEY ||
+      LEGACY_STORAGE_KEYS.includes(event.key)
+    ) {
+      syncTheme();
+    }
   });
 })();
