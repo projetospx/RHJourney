@@ -1,5 +1,5 @@
 // ============================================================
-// SHOPEE JOURNEY
+// RH JOURNEY
 // GESTÃO DE USUÁRIOS CORPORATIVOS
 // Arquivo completo: js/users.js
 // ============================================================
@@ -38,7 +38,7 @@
         prefetchUsersData();
       }
     } catch (error) {
-      console.warn('Shopee Journey / Usuários: identidade ainda não disponível.', error);
+      console.warn('RH Journey / Usuários: identidade ainda não disponível.', error);
     }
   }
 
@@ -508,7 +508,7 @@
 
             <label class="users-field">
               <span>E-mail corporativo *</span>
-              <input id="userEditEmail" type="email" required value="${escapeHTML(user?.corporate_email || '')}" placeholder="nome@shopee.com">
+              <input id="userEditEmail" type="email" required value="${escapeHTML(user?.corporate_email || '')}" placeholder="nome@RH.com">
             </label>
 
             <label class="users-field">
@@ -668,7 +668,7 @@
       const { operationIds, periodIds } = collectResponsibility();
 
       if (!fullName) throw new Error('Informe o nome completo.');
-      if (!email.endsWith('@shopee.com')) throw new Error('Use um e-mail corporativo @shopee.com.');
+      if (!email.endsWith('@RH.com')) throw new Error('Use um e-mail corporativo @RH.com.');
 
       if (role === 'LEADER' && !operationIds.length) {
         throw new Error('Vincule o líder a pelo menos uma operação.');
@@ -839,5 +839,5 @@
   window.loadUsersPage = openUsersPage;
   window.closeUsersModal = closeUserModal;
 
-  console.log('Shopee Journey: users.js carregado.');
+  console.log('RH Journey: users.js carregado.');
 })();
