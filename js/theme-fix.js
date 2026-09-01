@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const PRIMARY_STORAGE_KEY = 'shopeeJourneyTheme';
+  const PRIMARY_STORAGE_KEY = 'RHJourneyTheme';
   const LEGACY_STORAGE_KEYS = ['theme', 'journey-theme'];
   const VALID_THEMES = new Set(['light', 'dark']);
 
