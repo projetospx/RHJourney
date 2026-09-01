@@ -1,5 +1,5 @@
 // ============================================================
-// SHOPEE JOURNEY
+// RH JOURNEY
 // APP PRINCIPAL CONSOLIDADO
 // ============================================================
 
@@ -21,7 +21,7 @@ const PAGE_META = {
   assessments: ['Avaliações', 'Avaliações da Jornada'],
   pending: ['Pendências', 'Pontos que exigem atuação'],
   indicators: ['Indicadores', 'Aderência e evolução da Jornada'],
-  settings: ['Configurações', 'Estrutura e acessos do Shopee Journey']
+  settings: ['Configurações', 'Estrutura e acessos do RH Journey']
 };
 
 const CHECKPOINT_ORDER = {
@@ -76,7 +76,7 @@ async function initializeApp() {
     applySavedTheme();
 
     showPageLoading(
-      'Carregando Shopee Journey...'
+      'Carregando RH Journey...'
     );
 
 
@@ -143,7 +143,7 @@ async function initializeApp() {
 
       pageContent.innerHTML =
         renderError(
-          'Não foi possível carregar o Shopee Journey.',
+          'Não foi possível carregar o RH Journey.',
           error.message
         );
 
@@ -517,7 +517,7 @@ function setPageHeader(
     PAGE_META[page]
     ||
     [
-      'Shopee Journey',
+      'RH Journey',
       ''
     ];
 
@@ -701,7 +701,7 @@ async function loadAdminDashboard() {
           </h3>
 
           <p>
-            Acesse os principais fluxos do Shopee Journey.
+            Acesse os principais fluxos do RH Journey.
           </p>
 
         </div>
@@ -909,7 +909,7 @@ async function loadEmployeeDashboard() {
     <div class="journey-hero-simple">
 
       <span>
-        SHOPEE JOURNEY
+        RH JOURNEY
       </span>
 
       <h2>
@@ -1341,7 +1341,7 @@ function openImportEmployeesModal() {
 
         <p>
           Selecione o arquivo XLSX preenchido
-          no modelo do Shopee Journey.
+          no modelo do RH Journey.
         </p>
 
       </div>
@@ -2011,7 +2011,7 @@ function downloadImportTemplate() {
   const instructions = [
 
     [
-      'SHOPEE JOURNEY - INSTRUÇÕES'
+      'RH JOURNEY - INSTRUÇÕES'
     ],
 
     [
@@ -2115,7 +2115,7 @@ function downloadImportTemplate() {
 
   XLSX.writeFile(
     wb,
-    'Modelo_Importacao_Shopee_Journey.xlsx'
+    'Modelo_Importacao_RH_Journey.xlsx'
   );
 
 }
@@ -5974,7 +5974,7 @@ async function createCorporateUser() {
 
   const corporateEmail =
     prompt(
-      'E-mail corporativo @shopee.com:'
+      'E-mail corporativo @empresa.com:'
     );
 
 
@@ -7473,7 +7473,7 @@ function applySavedTheme() {
 
   const saved =
     localStorage.getItem(
-      'shopeeJourneyTheme'
+      'RHJourneyTheme'
     )
     ||
     'light';
@@ -7530,7 +7530,7 @@ function toggleTheme() {
 
 
   localStorage.setItem(
-    'shopeeJourneyTheme',
+    'RHJourneyTheme',
     next
   );
 
@@ -7893,5 +7893,5 @@ window.formatDate =
 
 
 console.log(
-  'Shopee Journey: app.js consolidado v2 carregado com sucesso.'
+  'RH Journey: app.js consolidado v2 carregado com sucesso.'
 );
