@@ -4033,7 +4033,7 @@
 
 
   console.log(
-    'Shopee Journey: assessments.js escalável carregado.'
+    'RH Journey: assessments.js escalável carregado.'
   );
 
 })();
