@@ -1,5 +1,5 @@
 // ============================================================
-// SHOPEE JOURNEY
+// RH JOURNEY
 // MÓDULO DE COLABORADORES - RH
 // Arquivo completo: js/employees.js
 // ============================================================
@@ -58,7 +58,7 @@
       setTimeout(updateEmployeesMenuVisibility, 1000);
       setTimeout(fixSidebarIdentity, 1000);
     } catch (error) {
-      console.warn('Shopee Journey / Colaboradores: identidade ainda não disponível.', error);
+      console.warn('RH Journey / Colaboradores: identidade ainda não disponível.', error);
     }
   }
 
@@ -1914,5 +1914,5 @@
   window.loadEmployeesPage = openEmployeesPage;
   window.closeEmployeesModal = closeEmployeesModal;
 
-  console.log('Shopee Journey: employees.js carregado.');
+  console.log('RH Journey: employees.js carregado.');
 })();
