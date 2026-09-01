@@ -1,5 +1,5 @@
 // ============================================================
-// SHOPEE JOURNEY
+// RH JOURNEY
 // CONFIGURAÇÕES — BPOs, OPERAÇÕES E TURNOS
 // Módulo isolado. Não altera login, app.js, avaliações ou usuários.
 // ============================================================
@@ -47,7 +47,7 @@
       await loadStructureData();
       renderStructurePage();
     } catch (error) {
-      console.error('Shopee Journey / Configurações:', error);
+      console.error('RH Journey / Configurações:', error);
       host.innerHTML = renderError(error);
     }
   }
@@ -651,5 +651,5 @@
     reload: loadStructureData
   });
 
-  console.log('Shopee Journey: settings-structure.js carregado.');
+  console.log('RH Journey: settings-structure.js carregado.');
 })();
