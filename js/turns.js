@@ -1,5 +1,5 @@
 // ============================================================
-// SHOPEE JOURNEY
+// RH JOURNEY
 // GESTÃO DE TURNOS POR OPERAÇÃO
 // Arquivo completo: js/turns.js
 // ============================================================
@@ -25,7 +25,7 @@
       setTimeout(updateMenuVisibility, 300);
       setTimeout(updateMenuVisibility, 1000);
     } catch (error) {
-      console.warn('Shopee Journey / Turnos: identidade ainda não disponível.', error);
+      console.warn('RH Journey / Turnos: identidade ainda não disponível.', error);
     }
   }
 
@@ -508,5 +508,5 @@
 
   window.loadTurnsPage = openTurnsPage;
 
-  console.log('Shopee Journey: turns.js carregado.');
+  console.log('RH Journey: turns.js carregado.');
 })();
