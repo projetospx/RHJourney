@@ -253,7 +253,7 @@ function setLoginMode(
 
     loginLabel.textContent =
       corporate
-        ? 'E-mail Shopee'
+        ? 'E-mail Corporativo'
         : 'CPF';
 
   }
@@ -276,7 +276,7 @@ function setLoginMode(
 
     loginInput.placeholder =
       corporate
-        ? 'nome@shopee.com'
+        ? 'nome@empresa.com'
         : '000.000.000-00';
 
     loginInput.focus();
@@ -288,7 +288,7 @@ function setLoginMode(
 
     accessHelp.textContent =
       corporate
-        ? 'Utilize seu e-mail corporativo Shopee.'
+        ? 'Utilize seu e-mail corporativo.'
         : 'Utilize seu CPF e sua senha de acesso.';
 
   }
@@ -951,12 +951,12 @@ loginForm
 
           if (
             !email.endsWith(
-              '@shopee.com'
+              '@empresa.com'
             )
           ) {
 
             throw new Error(
-              'Utilize seu e-mail corporativo @shopee.com.'
+              'Utilize seu e-mail corporativo @empresa.com.'
             );
 
           }
@@ -1044,7 +1044,7 @@ loginForm
 
 
         showLoginMessage(
-          'Acesso confirmado. Abrindo Shopee Journey...',
+          'Acesso confirmado. Abrindo RH Journey...',
           'success'
         );
 
@@ -1069,7 +1069,7 @@ loginForm
       catch (error) {
 
         console.error(
-          'Shopee Journey login:',
+          'RH Journey login:',
           error
         );
 
@@ -1110,5 +1110,5 @@ loginForm
 
 
 console.log(
-  'Shopee Journey Auth V2 carregado.'
+  'RH Journey Auth V2 carregado.'
 );
