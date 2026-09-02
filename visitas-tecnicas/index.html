@@ -1,1 +1,45 @@
-
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ee4d2d">
+  <meta name="description" content="Diagnóstico operacional de RH baseado em evidências.">
+  <meta property="og:title" content="Visitas Técnicas">
+  <meta property="og:description" content="Diagnóstico operacional de RH baseado em evidências.">
+  <meta property="og:image" content="./og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>Visitas Técnicas • RH Operacional</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="product.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand"><span class="brand-mark">VT</span><span><b>Visitas Técnicas</b><small>RH Operacional</small></span></div>
+      <nav id="main-nav">
+        <button class="nav-item active" data-view="dashboard"><span>⌂</span> Visão geral</button>
+        <button class="nav-item" data-view="new-visit"><span>＋</span> Nova visita</button>
+        <button class="nav-item" data-view="field"><span>◎</span> Modo campo</button>
+        <button class="nav-item" data-view="interviews"><span>◉</span> Entrevistas</button>
+        <button class="nav-item" data-view="survey"><span>≋</span> Pesquisa / Clima</button>
+        <button class="nav-item" data-view="diagnostics"><span>◇</span> Diagnóstico</button>
+        <button class="nav-item" data-view="situation"><span>!</span> Sala de situação</button>
+        <button class="nav-item" data-view="reports"><span>▤</span> Relatórios</button>
+      </nav>
+      <div class="sidebar-foot"><span class="pulse"></span><span><b>Backup local ativo</b><small>Última cópia: agora</small></span></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <button class="icon-btn mobile-only" id="menu-btn" aria-label="Abrir menu">☰</button>
+        <div><p class="eyebrow">DIAGNÓSTICO OPERACIONAL DE RH</p><h1 id="page-title">Visão geral</h1></div>
+        <div class="top-actions"><span class="sync-pill">● Salvo neste dispositivo</span><button class="icon-btn" id="theme-toggle" aria-label="Alternar tema">◐</button><button class="avatar" aria-label="Perfil RH">RH</button></div>
+      </header>
+      <main id="app" tabindex="-1"></main>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
