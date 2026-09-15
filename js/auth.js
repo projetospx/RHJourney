@@ -950,17 +950,12 @@ loginForm
 
 
           if (
-            !email.endsWith(
-              '@empresa.com'
-            )
-          ) {
-
-            throw new Error(
-              'Utilize seu e-mail corporativo @empresa.com.'
-            );
-
-          }
-
+  !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+) {
+  throw new Error(
+    'Informe um e-mail corporativo válido.'
+  );
+}
         }
 
 
