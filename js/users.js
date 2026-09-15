@@ -508,7 +508,7 @@
 
             <label class="users-field">
               <span>E-mail corporativo *</span>
-              <input id="userEditEmail" type="email" required value="${escapeHTML(user?.corporate_email || '')}" placeholder="nome@RH.com">
+              <input id="userEditEmail" type="email" required value="${escapeHTML(user?.corporate_email || '')}" placeholder="nome@empresa.com">
             </label>
 
             <label class="users-field">
@@ -668,7 +668,9 @@
       const { operationIds, periodIds } = collectResponsibility();
 
       if (!fullName) throw new Error('Informe o nome completo.');
-      if (!email.endsWith('@RH.com')) throw new Error('Use um e-mail corporativo @RH.com.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  throw new Error('Informe um e-mail corporativo válido.');
+}
 
       if (role === 'LEADER' && !operationIds.length) {
         throw new Error('Vincule o líder a pelo menos uma operação.');
